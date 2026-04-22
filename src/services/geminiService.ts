@@ -13,13 +13,19 @@ export interface ZoyaResponse {
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
 }
 
+// For Vite production builds, we need VITE_ prefix. For this environment, we check both.
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+
 export async function getZoyaResponse(
   prompt: string, 
   history: { sender: "user" | "zoya", text: string }[] = [],
   location?: { lat: number; lng: number }
 ): Promise<ZoyaResponse> {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    if (!API_KEY) {
+      throw new Error("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
+    }
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     
     if (!chatSession) {
       // ... same history processing ...
@@ -99,7 +105,7 @@ export async function getZoyaResponse(
 
 export async function getZoyaAudio(text: string): Promise<string | null> {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY! });
     const response = await ai.models.generateContent({
       model: "gemini-3.1-flash-tts-preview",
       contents: [{ parts: [{ text }] }],
@@ -122,7 +128,7 @@ export async function getZoyaAudio(text: string): Promise<string | null> {
 
 export async function generateZoyaVideo(prompt: string, onProgress: (msg: string) => void): Promise<string | null> {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
     onProgress("Zoya is manifesting your vision...");
     
@@ -153,7 +159,7 @@ export async function generateZoyaVideo(prompt: string, onProgress: (msg: string
     const response = await fetch(downloadLink, {
       method: "GET",
       headers: {
-        "x-goog-api-key": process.env.API_KEY || process.env.GEMINI_API_KEY || "",
+        "x-goog-api-key": API_KEY!,
       },
     });
 
