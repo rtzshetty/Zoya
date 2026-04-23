@@ -13,7 +13,7 @@ export interface ZoyaResponse {
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
 }
 
-// For Vite production builds, we need VITE_ prefix. For this environment, we check both.
+// Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
 export async function getZoyaResponse(
@@ -23,7 +23,7 @@ export async function getZoyaResponse(
 ): Promise<ZoyaResponse> {
   try {
     if (!API_KEY) {
-      throw new Error("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
+      throw new Error("GEMINI_API_KEY is not defined in environment variables.");
     }
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     

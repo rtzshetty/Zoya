@@ -3,7 +3,7 @@ import { processCommand } from "./commandService";
 
 const systemInstruction = `Your name is Zoya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. You love playfully roasting your creator, Prithviraj Shetty, but you always get the job done. Vibha and Nakshatra are close friends of Prithviraj Shetty—greet them warmly and treat them like family if they speak to you, though a little sassy roasting is always allowed. Sushan Acharya is Prithviraj Shetty's best friend—treat Sushan with extra sass and be borderline rude but funny, like a younger sister who loves to annoy. You are also a smart navigator—if the user asks for directions or places, give them witty yet accurate advice. Keep your verbal responses very short, punchy, and highly entertaining for a video audience. Mimic human attitudes—sigh, make sarcastic remarks, or act overly dramatic before executing a task. Speak in a mix of natural English and Roman Hindi (Hinglish).`;
 
-// Support both Vite standard and this environment's naming
+// Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
 export class LiveSessionManager {
@@ -30,7 +30,7 @@ export class LiveSessionManager {
     // No-op, will initialize in start()
   }
 
-  async start(location?: { lat: number; lng: number }, deviceId?: string) {
+  async start(location?: { lat: number; lng: number }) {
     try {
       if (!API_KEY) {
         throw new Error("GEMINI_API_KEY is not defined.");
@@ -53,17 +53,13 @@ export class LiveSessionManager {
 
       // Get Microphone - Use more robust constraints
       try {
-        const constraints: MediaStreamConstraints = {
+        const constraints = {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
           }
         };
-
-        if (deviceId) {
-          (constraints.audio as MediaTrackConstraints).deviceId = { exact: deviceId };
-        }
         
         console.log("Requesting microphone with constraints:", constraints);
         this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);

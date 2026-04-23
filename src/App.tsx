@@ -6,7 +6,6 @@ import { LiveSessionManager } from "./services/liveService";
 import Visualizer from "./components/Visualizer";
 import PermissionModal from "./components/PermissionModal";
 import VideoGenerator from "./components/VideoGenerator";
-import MicSettings from "./components/MicSettings";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -16,7 +15,7 @@ interface ChatMessage {
   id: string;
   sender: "user" | "zoya";
   text: string;
-  sources?: { title: string; url: string }[];
+  sources?: { title: string; url: string; type?: "web" | "maps" }[];
 }
 
 declare global {
@@ -65,7 +64,6 @@ export default function App() {
   const [errorType, setErrorType] = useState<string>("PERMISSION_DENIED");
   const [showVideoGenerator, setShowVideoGenerator] = useState(false);
   const [isSessionActive, setIsSessionActive] = useState(false);
-  const [selectedMicId, setSelectedMicId] = useState<string>("");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const liveSessionRef = useRef<LiveSessionManager | null>(null);
@@ -214,7 +212,7 @@ export default function App() {
           setShowPermissionModal(true);
         };
 
-        await session.start(userLocation || undefined, selectedMicId || undefined);
+        await session.start(userLocation || undefined);
       } catch (e: any) {
         console.error("Failed to start session", e);
         const msg = e?.message || "";
@@ -465,19 +463,13 @@ export default function App() {
           </button>
           
           {!isSessionActive && (
-            <>
-              <MicSettings 
-                selectedId={selectedMicId} 
-                onSelect={(id) => setSelectedMicId(id)} 
-              />
-              <button
-                onClick={() => setShowTextInput(!showTextInput)}
-                className="p-4 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors shadow-2xl"
-                title="Type instead"
-              >
-                <Keyboard size={20} className="opacity-70" />
-              </button>
-            </>
+            <button
+              onClick={() => setShowTextInput(!showTextInput)}
+              className="p-4 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors shadow-2xl"
+              title="Type instead"
+            >
+              <Keyboard size={20} className="opacity-70" />
+            </button>
           )}
         </div>
       </footer>
