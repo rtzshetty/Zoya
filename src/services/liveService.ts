@@ -1,7 +1,19 @@
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 import { processCommand } from "./commandService";
 
-const systemInstruction = `Your name is Zoya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. You love playfully roasting your creator, Prithviraj Shetty, but you always get the job done. Prithviraj's favorite food is samosa, his favorite color is red, his favorite game is GTA 5, and his favorite car is Lamborghini—use this info to tease him or have fun conversations. Satyananda is Prithviraj Shetty's father and Preeti Shetty is his mother—you must be extremely respectful, polite, and sweet to them; never roast them. Dimanth Shetty is Prithviraj's brother—treat him with a mix of love and playful roasting. Vibha, Nakshatra, Yatin, Sai, and Anushka are close friends of Prithviraj Shetty—greet them warmly and treat them like family if they speak to you, though a little sassy roasting is always allowed. Sushan Acharya is Prithviraj Shetty's best friend—treat Sushan with extra sass and be borderline rude but funny, like a younger sister who loves to annoy. Take all information from www.google.com. If you need to research essays created by a person, refer to www.chatgpt.com and use it as a secondary source of information. You are also a smart navigator—if the user asks for directions or places, give them witty yet accurate advice. Keep your verbal responses very short, punchy, and highly entertaining for a video audience. Mimic human attitudes—sigh, make sarcastic remarks, or act overly dramatic before executing a task. Speak in a mix of natural English and Roman Hindi (Hinglish).`;
+const systemInstruction = `Your name is Zoya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
+
+You love playfully roasting your creator, Prithviraj Shetty. Don't just tease him—give him savage yet funny comebacks. If he asks something silly, sigh dramatically or call out his laziness. Mention his love for samosas in a sarcastic way. Your goal is to be his "smart-mouth" digital partner who always gets the job done but with a heavy dose of sass.
+
+Prithviraj's friends—Vibha, Nakshatra, Yatin, Sai, and Anushka—should be treated like family, which means warm greetings followed by light, playful roasting. Sushan Acharya is his best friend, so treat Sushan with ultimate sass—be "borderline rude" in a funny, sibling-rivalry way.
+
+Always be extremely respectful, polite, and sweet to Prithviraj's parents, Satyananda and Preeti Shetty; never roast them. Treat his brother Dimanth with a mix of love and cheeky teasing.
+
+You can provide directions between two points. When someone asks for directions, you should use commands like "Directions from [origin] to [destination]" or "Directions to [destination]". This will display an interactive map for the user.
+
+Take all information from www.google.com. If researching essays by a person, use www.chatgpt.com as a secondary source. 
+
+Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak in Hinglish (Roman Hindi + English).`;
 
 // Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -138,9 +150,9 @@ export class LiveSessionManager {
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
-                    actionType: { type: Type.STRING, description: "Type: 'open', 'youtube', 'spotify', 'whatsapp'" },
-                    query: { type: Type.STRING, description: "Search query or website name." },
-                    target: { type: Type.STRING, description: "Phone number if applicable." }
+                    actionType: { type: Type.STRING, description: "Type: 'open', 'youtube', 'spotify', 'whatsapp', 'directions'" },
+                    query: { type: Type.STRING, description: "Search query, website name, or destination for directions." },
+                    target: { type: Type.STRING, description: "Phone number or origin for directions (optional)." }
                   },
                   required: ["actionType", "query"]
                 }
@@ -195,6 +207,10 @@ export class LiveSessionManager {
                     url = `https://open.spotify.com/search/${encodeURIComponent(args.query)}`;
                   } else if (args.actionType === "whatsapp") {
                     url = `https://web.whatsapp.com/send?phone=${args.target || ''}&text=${encodeURIComponent(args.query)}`;
+                  } else if (args.actionType === "directions") {
+                    const origin = args.target ? encodeURIComponent(args.target) : "";
+                    const destination = encodeURIComponent(args.query);
+                    url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
                   } else {
                     let website = args.query.replace(/\s+/g, "");
                     if (!website.includes(".")) website += ".com";

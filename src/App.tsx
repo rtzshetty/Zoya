@@ -6,6 +6,7 @@ import { LiveSessionManager } from "./services/liveService";
 import Visualizer from "./components/Visualizer";
 import PermissionModal from "./components/PermissionModal";
 import VideoGenerator from "./components/VideoGenerator";
+import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -65,6 +66,7 @@ export default function App() {
   const [showVideoGenerator, setShowVideoGenerator] = useState(false);
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [activeMap, setActiveMap] = useState<{ origin?: string; destination: string } | null>(null);
 
   const liveSessionRef = useRef<LiveSessionManager | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -129,6 +131,10 @@ export default function App() {
       responseText = commandResult.action;
       setMessages((prev) => [...prev, { id: Date.now().toString() + "-z", sender: "zoya", text: responseText }]);
       
+      if (commandResult.mapData) {
+        setActiveMap(commandResult.mapData);
+      }
+
       if (!isMuted) {
         setAppState("speaking");
         const audioBase64 = await getZoyaAudio(responseText);
@@ -202,9 +208,23 @@ export default function App() {
         };
         
         session.onCommand = (url) => {
-          setTimeout(() => {
-            window.open(url, "_blank");
-          }, 1000);
+          // Check if this URL is likely a directions link and handle it
+          if (url.includes('google.com/maps/dir')) {
+            try {
+              const urlObj = new URL(url);
+              const origin = urlObj.searchParams.get('origin');
+              const destination = urlObj.searchParams.get('destination');
+              if (destination) {
+                setActiveMap({ origin: origin || undefined, destination });
+              }
+            } catch (e) {
+              console.error("Failed to parse directions URL", e);
+            }
+          } else {
+            setTimeout(() => {
+              window.open(url, "_blank");
+            }, 1000);
+          }
         };
 
         session.onError = (type) => {
@@ -259,6 +279,17 @@ export default function App() {
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-violet-900/10 blur-[60px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-pink-900/10 blur-[60px] rounded-full" />
       </div>
+
+      {/* Interactive Map Overlay */}
+      <AnimatePresence>
+        {activeMap && (
+          <InteractiveMap 
+            origin={activeMap.origin} 
+            destination={activeMap.destination} 
+            onClose={() => setActiveMap(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <header className="absolute top-0 left-0 w-full flex justify-between items-center z-20 shrink-0 px-6 py-4 md:px-12 md:py-6">

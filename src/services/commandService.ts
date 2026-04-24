@@ -2,6 +2,7 @@ export function processCommand(command: string): {
   action: string;
   url?: string;
   isBrowserAction: boolean;
+  mapData?: { origin?: string; destination: string };
 } {
   const lowerCmd = command.toLowerCase().trim();
 
@@ -56,6 +57,28 @@ export function processCommand(command: string): {
       action: `Sending your message. Let's hope they reply, Prithviraj Shetty.`,
       url: `https://web.whatsapp.com/send?phone=${number}&text=${message}`,
       isBrowserAction: true,
+    };
+  }
+
+  // Maps/Directions: "Directions from [place1] to [place2]"
+  const directionsMatch = lowerCmd.match(/^(?:get\s+)?directions\s+(?:from\s+)?(.+?)\s+to\s+(.+)$/);
+  if (directionsMatch) {
+    return {
+      action: `Showing directions from ${directionsMatch[1]} to ${directionsMatch[2]}. Don't get lost!`,
+      url: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(directionsMatch[1])}&destination=${encodeURIComponent(directionsMatch[2])}`,
+      isBrowserAction: true,
+      mapData: { origin: directionsMatch[1], destination: directionsMatch[2] }
+    };
+  }
+
+  // Simple location search: "Directions to [destination]"
+  const simpleDirectionsMatch = lowerCmd.match(/^(?:get\s+)?directions\s+to\s+(.+)$/);
+  if (simpleDirectionsMatch) {
+    return {
+      action: `Opening directions to ${simpleDirectionsMatch[1]} for you.`,
+      url: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(simpleDirectionsMatch[1])}`,
+      isBrowserAction: true,
+      mapData: { destination: simpleDirectionsMatch[1] }
     };
   }
 
