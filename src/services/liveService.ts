@@ -41,17 +41,7 @@ export class LiveSessionManager {
       const locStr = location ? `\n\nUser current location: Latitude ${location.lat}, Longitude ${location.lng}. Use this for navigation/directions help.` : "";
       const dynamicInstruction = systemInstruction + locStr;
       
-      // Initialize Audio Contexts
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.audioContext = new AudioContextClass({ sampleRate: 16000 });
-      this.playbackContext = new AudioContextClass({ sampleRate: 24000 });
-      this.nextPlayTime = this.playbackContext.currentTime;
-
-      // Resume contexts on user interaction
-      await this.audioContext.resume();
-      await this.playbackContext.resume();
-
-      // Get Microphone - Use more robust constraints
+      // 1. Get Microphone FIRST - Use more robust constraints
       try {
         const constraints = {
           audio: {
@@ -73,12 +63,27 @@ export class LiveSessionManager {
             this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
           } catch (retryError: any) {
             console.error("Fallback microphone access error:", retryError);
-            throw new Error(retryError.name === 'NotAllowedError' ? "Permission denied" : "Microphone error");
+            throw new Error(retryError.name === 'NotAllowedError' ? "Permission denied" : "Microphone error: " + retryError.message);
           }
         } else {
-          throw new Error(micError.name === 'NotAllowedError' ? "Permission denied" : "Microphone error");
+          // If already blocked or other error
+          throw new Error(micError.name === 'NotAllowedError' ? "Permission denied" : "Microphone error: " + micError.message);
         }
       }
+
+      // 2. Initialize Audio Contexts ONLY after microphone is granted
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error("Web Audio API is not supported in this browser.");
+      }
+      
+      this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+      this.playbackContext = new AudioContextClass({ sampleRate: 24000 });
+      this.nextPlayTime = this.playbackContext.currentTime;
+
+      // Resume contexts on user interaction (we are in a click handler context here)
+      await this.audioContext.resume();
+      await this.playbackContext.resume();
 
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
       this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
