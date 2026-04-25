@@ -99,12 +99,28 @@ export default function App() {
         const credential = (result as any)._tokenResponse?.oauthAccessToken || (result as any).credential?.accessToken;
         if (credential) {
           setAccessToken(credential);
+          // Persist token for the session
+          sessionStorage.setItem('google_access_token', credential);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sign in failed:", error);
+      if (error.code === 'auth/popup-blocked') {
+        alert("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert("This domain is not authorized in Firebase Console. Please add '" + window.location.hostname + "' to Authorized domains in Firebase Authentication settings.");
+      } else {
+        alert("Sign in failed: " + (error.message || "Unknown error"));
+      }
     }
   };
+
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem('google_access_token');
+    if (savedToken) {
+      setAccessToken(savedToken);
+    }
+  }, []);
 
   const handleSignOut = () => {
     signOut(auth);
