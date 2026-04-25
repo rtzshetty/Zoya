@@ -9,6 +9,11 @@ import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
+import { auth, googleProvider } from "./lib/firebase";
+import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
+import { historyService, ChatMessage } from "./services/historyService";
+import { driveService, setAccessToken } from "./services/driveService";
+import { LogIn, LogOut, Save, History as HistoryIcon, User } from "lucide-react";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -28,27 +33,11 @@ declare global {
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem("zoya_chat_history");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse chat history", e);
-      }
-    }
-    return [];
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messagesRef = useRef(messages);
 
   useEffect(() => {
     messagesRef.current = messages;
-    localStorage.setItem("zoya_chat_history", JSON.stringify(messages));
-    
-    // Performance Optimization: Prevent chat history from growing indefinitely in memory
-    if (messages.length > 50) {
-      setMessages(prev => prev.slice(-50));
-    }
   }, [messages]);
 
   const [isMuted, setIsMuted] = useState(false);
@@ -67,9 +56,79 @@ export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeMap, setActiveMap] = useState<{ origin?: string; destination: string } | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [exportingToDrive, setExportingToDrive] = useState(false);
 
   const liveSessionRef = useRef<LiveSessionManager | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      if (user) {
+        setIsLoadingHistory(true);
+        const history = await historyService.getRecentHistory(15);
+        if (history.length > 0) {
+          setMessages(history.map(m => ({
+            id: m.id || Math.random().toString(),
+            sender: m.sender,
+            text: m.text
+          })));
+        } else {
+          setMessages([
+            { id: "1", sender: "zoya", text: `Namaste, ${user.displayName.split(' ')[0]}! Zoya is here. How can I entertain you today?` }
+          ]);
+        }
+        setIsLoadingHistory(false);
+      } else {
+        setMessages([
+          { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. Please sign in so I can remember our brilliant conversations." }
+        ]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignIn = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result) {
+        // Access token is needed for Drive API
+        const credential = (result as any)._tokenResponse?.oauthAccessToken || (result as any).credential?.accessToken;
+        if (credential) {
+          setAccessToken(credential);
+        }
+      }
+    } catch (error) {
+      console.error("Sign in failed:", error);
+    }
+  };
+
+  const handleSignOut = () => {
+    signOut(auth);
+    resetZoyaSession();
+    // Messages will be reset by onAuthStateChanged
+  };
+
+  const handleExportToDrive = async () => {
+    if (messages.length <= 1) return;
+    setExportingToDrive(true);
+    try {
+      const conversation = messages
+        .filter(m => m.id !== "1")
+        .map(m => `${m.sender.toUpperCase()}: ${m.text}`)
+        .join("\n\n");
+      
+      await driveService.saveToDrive(conversation, `Zoya_Chat_${new Date().toISOString().split('T')[0]}.txt`);
+      alert("Chat exported to your Google Drive successfully! Check for Zoya_Chat.txt");
+    } catch (error: any) {
+      alert(error.message || "Failed to save to Drive");
+    } finally {
+      setExportingToDrive(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -112,8 +171,13 @@ export default function App() {
       return;
     }
 
-    setMessages((prev) => [...prev, { id: Date.now().toString(), sender: "user", text: finalTranscript }]);
+    const userMsg: ChatMessage = { id: Date.now().toString(), sender: "user", text: finalTranscript };
+    setMessages((prev) => [...prev, userMsg]);
     
+    if (user) {
+      historyService.saveMessage(finalTranscript, "user");
+    }
+
     // If live session is active, send text through it
     if (isSessionActive && liveSessionRef.current) {
       liveSessionRef.current.sendText(finalTranscript);
@@ -129,7 +193,12 @@ export default function App() {
 
     if (commandResult.isBrowserAction) {
       responseText = commandResult.action;
-      setMessages((prev) => [...prev, { id: Date.now().toString() + "-z", sender: "zoya", text: responseText }]);
+      const zoyaMsg: ChatMessage = { id: Date.now().toString() + "-z", sender: "zoya", text: responseText };
+      setMessages((prev) => [...prev, zoyaMsg]);
+      
+      if (user) {
+        historyService.saveMessage(responseText, "zoya");
+      }
       
       if (commandResult.mapData) {
         setActiveMap(commandResult.mapData);
@@ -155,12 +224,17 @@ export default function App() {
       const zoyaResponse = await getZoyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
       responseText = zoyaResponse.text;
       
-      setMessages((prev) => [...prev, { 
+      const zoyaMsg: ChatMessage = { 
         id: Date.now().toString() + "-z", 
         sender: "zoya", 
         text: responseText,
         sources: zoyaResponse.sources
-      }]);
+      };
+      setMessages((prev) => [...prev, zoyaMsg]);
+      
+      if (user) {
+        historyService.saveMessage(responseText, "zoya");
+      }
       
       if (!isMuted) {
         setAppState("speaking");
@@ -205,6 +279,9 @@ export default function App() {
         
         session.onMessage = (sender, text) => {
           setMessages((prev) => [...prev, { id: Date.now().toString() + "-" + sender, sender, text }]);
+          if (auth.currentUser) {
+            historyService.saveMessage(text, sender);
+          }
         };
         
         session.onCommand = (url) => {
@@ -299,21 +376,41 @@ export default function App() {
           </div>
           <h1 className="text-xl font-serif font-medium tracking-wide opacity-90">Zoya</h1>
         </div>
+        
         <div className="flex items-center gap-2">
-          {messages.length > 0 && (
+          {user ? (
+            <>
+              <button
+                onClick={handleExportToDrive}
+                disabled={exportingToDrive}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-xs text-white/70"
+                title="Save Chat to Google Drive"
+              >
+                {exportingToDrive ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Export
+              </button>
+              <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-full border border-white/10">
+                {user.photoURL && <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />}
+                <span className="hidden sm:inline text-xs text-white/60">{user.displayName.split(' ')[0]}</span>
+                <button
+                  onClick={handleSignOut}
+                  className="p-1 hover:text-red-400 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            </>
+          ) : (
             <button
-              onClick={() => {
-                if (confirm("Are you sure you want to clear the chat history?")) {
-                  setMessages([]);
-                  resetZoyaSession();
-                }
-              }}
-              className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-white/10"
-              title="Clear Chat History"
+              onClick={handleSignIn}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all shadow-lg shadow-white/5"
             >
-              <Trash2 size={18} className="opacity-70" />
+              <LogIn size={14} />
+              Sign in
             </button>
           )}
+          
           <button
             onClick={() => setIsMuted(!isMuted)}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
