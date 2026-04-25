@@ -33,11 +33,24 @@ declare global {
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    // Try to load from local storage first for initial session
+    const saved = localStorage.getItem("zoya_chat_local_cache");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
   const messagesRef = useRef(messages);
 
   useEffect(() => {
     messagesRef.current = messages;
+    // Mirror to local cache
+    localStorage.setItem("zoya_chat_local_cache", JSON.stringify(messages));
   }, [messages]);
 
   const [isMuted, setIsMuted] = useState(false);
@@ -75,16 +88,19 @@ export default function App() {
             sender: m.sender,
             text: m.text
           })));
-        } else {
+        } else if (messages.length === 0) {
           setMessages([
-            { id: "1", sender: "zoya", text: `Namaste, ${user.displayName.split(' ')[0]}! Zoya is here. How can I entertain you today?` }
+            { id: "1", sender: "zoya", text: `Namaste, ${user.displayName?.split(' ')[0] || 'friend'}! Zoya is here. How can I entertain you today?` }
           ]);
         }
         setIsLoadingHistory(false);
       } else {
-        setMessages([
-          { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. Please sign in so I can remember our brilliant conversations." }
-        ]);
+        // If not signed in and no local history, show welcome message
+        if (messages.length === 0) {
+          setMessages([
+            { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. Please sign in so I can remember our brilliant conversations." }
+          ]);
+        }
       }
     });
 
@@ -397,6 +413,24 @@ export default function App() {
           {user ? (
             <>
               <button
+                onClick={async () => {
+                  if (confirm("Sync history from cloud?")) {
+                    setIsLoadingHistory(true);
+                    const history = await historyService.getRecentHistory(20);
+                    setMessages(history.map(m => ({
+                      id: m.id || Math.random().toString(),
+                      sender: m.sender,
+                      text: m.text
+                    })));
+                    setIsLoadingHistory(false);
+                  }
+                }}
+                className="hidden sm:flex p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                title="Sync History"
+              >
+                <HistoryIcon size={16} className={`opacity-70 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              </button>
+              <button
                 onClick={handleExportToDrive}
                 disabled={exportingToDrive}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-xs text-white/70"
@@ -407,7 +441,7 @@ export default function App() {
               </button>
               <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-full border border-white/10">
                 {user.photoURL && <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />}
-                <span className="hidden sm:inline text-xs text-white/60">{user.displayName.split(' ')[0]}</span>
+                <span className="hidden sm:inline text-xs text-white/60">{user.displayName?.split(' ')[0]}</span>
                 <button
                   onClick={handleSignOut}
                   className="p-1 hover:text-red-400 transition-colors"
@@ -418,13 +452,29 @@ export default function App() {
               </div>
             </>
           ) : (
-            <button
-              onClick={handleSignIn}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all shadow-lg shadow-white/5"
-            >
-              <LogIn size={14} />
-              Sign in
-            </button>
+            <>
+              {messages.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm("Clear local chat history?")) {
+                      setMessages([]);
+                      localStorage.removeItem("zoya_chat_local_cache");
+                      resetZoyaSession();
+                    }
+                  }}
+                  className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-white/10"
+                >
+                  <Trash2 size={18} className="opacity-70" />
+                </button>
+              )}
+              <button
+                onClick={handleSignIn}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all shadow-lg shadow-white/5"
+              >
+                <LogIn size={14} />
+                Sign in
+              </button>
+            </>
           )}
           
           <button
