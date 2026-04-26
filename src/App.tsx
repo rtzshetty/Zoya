@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save } from "lucide-react";
 import { getZoyaResponse, getZoyaAudio, resetZoyaSession } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
@@ -9,11 +9,6 @@ import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
-import { auth, googleProvider } from "./lib/firebase";
-import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
-import { historyService, ChatMessage } from "./services/historyService";
-import { driveService, setAccessToken } from "./services/driveService";
-import { LogIn, LogOut, Save, History as HistoryIcon, User } from "lucide-react";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -34,7 +29,6 @@ declare global {
 export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    // Try to load from local storage first for initial session
     const saved = localStorage.getItem("zoya_chat_local_cache");
     if (saved) {
       try {
@@ -49,7 +43,6 @@ export default function App() {
 
   useEffect(() => {
     messagesRef.current = messages;
-    // Mirror to local cache
     localStorage.setItem("zoya_chat_local_cache", JSON.stringify(messages));
   }, [messages]);
 
@@ -69,97 +62,72 @@ export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeMap, setActiveMap] = useState<{ origin?: string; destination: string } | null>(null);
-  const [user, setUser] = useState<any>(null);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [exportingToDrive, setExportingToDrive] = useState(false);
+  const [isDictating, setIsDictating] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startDictation = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onstart = () => setIsDictating(true);
+    recognition.onend = () => setIsDictating(false);
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0])
+        .map((result: any) => result.transcript)
+        .join('');
+      setTextInput(transcript);
+    };
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsDictating(false);
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  const stopDictation = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  };
 
   const liveSessionRef = useRef<LiveSessionManager | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        setIsLoadingHistory(true);
-        const history = await historyService.getRecentHistory(15);
-        if (history.length > 0) {
-          setMessages(history.map(m => ({
-            id: m.id || Math.random().toString(),
-            sender: m.sender,
-            text: m.text
-          })));
-        } else if (messages.length === 0) {
-          setMessages([
-            { id: "1", sender: "zoya", text: `Namaste, ${user.displayName?.split(' ')[0] || 'friend'}! Zoya is here. How can I entertain you today?` }
-          ]);
-        }
-        setIsLoadingHistory(false);
-      } else {
-        // If not signed in and no local history, show welcome message
-        if (messages.length === 0) {
-          setMessages([
-            { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. Please sign in so I can remember our brilliant conversations." }
-          ]);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleSignIn = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result) {
-        // Access token is needed for Drive API
-        const credential = (result as any)._tokenResponse?.oauthAccessToken || (result as any).credential?.accessToken;
-        if (credential) {
-          setAccessToken(credential);
-          // Persist token for the session
-          sessionStorage.setItem('google_access_token', credential);
-        }
-      }
-    } catch (error: any) {
-      console.error("Sign in failed:", error);
-      if (error.code === 'auth/popup-blocked') {
-        alert("Sign-in popup was blocked by your browser. Please allow popups for this site.");
-      } else if (error.code === 'auth/unauthorized-domain') {
-        alert("This domain is not authorized in Firebase Console. Please add '" + window.location.hostname + "' to Authorized domains in Firebase Authentication settings.");
-      } else {
-        alert("Sign in failed: " + (error.message || "Unknown error"));
-      }
-    }
-  };
-
-  useEffect(() => {
-    const savedToken = sessionStorage.getItem('google_access_token');
-    if (savedToken) {
-      setAccessToken(savedToken);
+    // Initial greeting if no messages exist
+    if (messages.length === 0) {
+      setMessages([
+        { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. How can I entertain you today?" }
+      ]);
     }
   }, []);
 
-  const handleSignOut = () => {
-    signOut(auth);
-    resetZoyaSession();
-    // Messages will be reset by onAuthStateChanged
-  };
-
-  const handleExportToDrive = async () => {
-    if (messages.length <= 1) return;
-    setExportingToDrive(true);
-    try {
-      const conversation = messages
-        .filter(m => m.id !== "1")
-        .map(m => `${m.sender.toUpperCase()}: ${m.text}`)
-        .join("\n\n");
-      
-      await driveService.saveToDrive(conversation, `Zoya_Chat_${new Date().toISOString().split('T')[0]}.txt`);
-      alert("Chat exported to your Google Drive successfully! Check for Zoya_Chat.txt");
-    } catch (error: any) {
-      alert(error.message || "Failed to save to Drive");
-    } finally {
-      setExportingToDrive(false);
-    }
+  const handleDownloadChat = () => {
+    if (messages.length === 0) return;
+    const conversation = messages
+      .map(m => `${m.sender.toUpperCase()}: ${m.text}`)
+      .join("\n\n");
+    
+    const blob = new Blob([conversation], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Zoya_Chat_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const scrollToBottom = () => {
@@ -173,7 +141,6 @@ export default function App() {
   useEffect(() => {
     let watchId: number;
     
-    // Delayed location check to not overwhelm user with popups immediately
     const timer = setTimeout(() => {
       if (navigator.geolocation) {
         watchId = navigator.geolocation.watchPosition(
@@ -184,7 +151,7 @@ export default function App() {
             });
           },
           (error) => {
-            console.warn("Location access declined/failed, continuing without maps optimization:", error.message);
+            console.warn("Location access declined/failed:", error.message);
           },
           { enableHighAccuracy: false, timeout: 5000 }
         );
@@ -206,31 +173,19 @@ export default function App() {
     const userMsg: ChatMessage = { id: Date.now().toString(), sender: "user", text: finalTranscript };
     setMessages((prev) => [...prev, userMsg]);
     
-    if (user) {
-      historyService.saveMessage(finalTranscript, "user");
-    }
-
-    // If live session is active, send text through it
     if (isSessionActive && liveSessionRef.current) {
       liveSessionRef.current.sendText(finalTranscript);
       return;
     }
 
     setAppState("processing");
-
-    // 1. Check for browser commands
     const commandResult = processCommand(finalTranscript);
-
     let responseText = "";
 
     if (commandResult.isBrowserAction) {
       responseText = commandResult.action;
       const zoyaMsg: ChatMessage = { id: Date.now().toString() + "-z", sender: "zoya", text: responseText };
       setMessages((prev) => [...prev, zoyaMsg]);
-      
-      if (user) {
-        historyService.saveMessage(responseText, "zoya");
-      }
       
       if (commandResult.mapData) {
         setActiveMap(commandResult.mapData);
@@ -252,7 +207,6 @@ export default function App() {
         }
       }, 1500);
     } else {
-      // 2. General Chit-Chat via Gemini
       const zoyaResponse = await getZoyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
       responseText = zoyaResponse.text;
       
@@ -263,10 +217,6 @@ export default function App() {
         sources: zoyaResponse.sources
       };
       setMessages((prev) => [...prev, zoyaMsg]);
-      
-      if (user) {
-        historyService.saveMessage(responseText, "zoya");
-      }
       
       if (!isMuted) {
         setAppState("speaking");
@@ -311,13 +261,9 @@ export default function App() {
         
         session.onMessage = (sender, text) => {
           setMessages((prev) => [...prev, { id: Date.now().toString() + "-" + sender, sender, text }]);
-          if (auth.currentUser) {
-            historyService.saveMessage(text, sender);
-          }
         };
         
         session.onCommand = (url) => {
-          // Check if this URL is likely a directions link and handle it
           if (url.includes('google.com/maps/dir')) {
             try {
               const urlObj = new URL(url);
@@ -383,13 +329,11 @@ export default function App() {
         />
       )}
 
-      {/* Cinematic Background Gradients - Optimized for lower-end devices */}
       <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-violet-900/10 blur-[60px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-pink-900/10 blur-[60px] rounded-full" />
       </div>
 
-      {/* Interactive Map Overlay */}
       <AnimatePresence>
         {activeMap && (
           <InteractiveMap 
@@ -400,7 +344,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
       <header className="absolute top-0 left-0 w-full flex justify-between items-center z-20 shrink-0 px-6 py-4 md:px-12 md:py-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center font-bold text-sm">
@@ -410,73 +353,33 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
-          {user ? (
+          {messages.length > 0 && (
             <>
               <button
-                onClick={async () => {
-                  if (confirm("Sync history from cloud?")) {
-                    setIsLoadingHistory(true);
-                    const history = await historyService.getRecentHistory(20);
-                    setMessages(history.map(m => ({
-                      id: m.id || Math.random().toString(),
-                      sender: m.sender,
-                      text: m.text
-                    })));
-                    setIsLoadingHistory(false);
+                onClick={handleDownloadChat}
+                className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                title="Download Chat Locally"
+              >
+                <Save size={18} className="opacity-70" />
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("Clear local chat history?")) {
+                    setMessages([
+                      { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. How can I entertain you today?" }
+                    ]);
+                    localStorage.removeItem("zoya_chat_local_cache");
+                    resetZoyaSession();
                   }
                 }}
-                className="hidden sm:flex p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
-                title="Sync History"
+                className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-white/10"
+                title="Clear History"
               >
-                <HistoryIcon size={16} className={`opacity-70 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={handleExportToDrive}
-                disabled={exportingToDrive}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-xs text-white/70"
-                title="Save Chat to Google Drive"
-              >
-                {exportingToDrive ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Export
-              </button>
-              <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-full border border-white/10">
-                {user.photoURL && <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />}
-                <span className="hidden sm:inline text-xs text-white/60">{user.displayName?.split(' ')[0]}</span>
-                <button
-                  onClick={handleSignOut}
-                  className="p-1 hover:text-red-400 transition-colors"
-                  title="Sign Out"
-                >
-                  <LogOut size={16} />
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {messages.length > 0 && (
-                <button
-                  onClick={() => {
-                    if (confirm("Clear local chat history?")) {
-                      setMessages([]);
-                      localStorage.removeItem("zoya_chat_local_cache");
-                      resetZoyaSession();
-                    }
-                  }}
-                  className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-white/10"
-                >
-                  <Trash2 size={18} className="opacity-70" />
-                </button>
-              )}
-              <button
-                onClick={handleSignIn}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all shadow-lg shadow-white/5"
-              >
-                <LogIn size={14} />
-                Sign in
+                <Trash2 size={18} className="opacity-70" />
               </button>
             </>
           )}
-          
+
           <button
             onClick={() => setIsMuted(!isMuted)}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
@@ -491,7 +394,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Chat History Overlay */}
       <div className="absolute inset-x-0 top-24 bottom-32 overflow-y-auto px-6 md:px-12 pointer-events-none z-10 custom-scrollbar">
         <div className="max-w-2xl mx-auto flex flex-col gap-4 pointer-events-auto pb-4">
           {messages.map((msg) => (
@@ -537,10 +439,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content - Visualizer & Chat Status */}
       <main className="absolute inset-0 flex flex-row items-center justify-between w-full h-full z-10 overflow-hidden pt-20 pb-24 px-4 md:px-12 pointer-events-none">
-        
-        {/* Left Column: Zoya Status */}
         <div className="flex w-[30%] lg:w-[25%] h-full flex-col justify-center gap-4 z-10">
           <div className="h-6">
             <AnimatePresence>
@@ -559,12 +458,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* Center Visualizer (Fixed Full Screen Background) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
           <Visualizer state={appState} />
         </div>
 
-        {/* Right Column: User Status */}
         <div className="flex w-[30%] lg:w-[25%] h-full flex-col justify-center gap-4 z-10">
           <div className="h-6 flex justify-end">
             <AnimatePresence>
@@ -582,10 +479,8 @@ export default function App() {
             </AnimatePresence>
           </div>
         </div>
-
       </main>
 
-      {/* Controls */}
       <footer className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center pb-6 md:pb-8 z-20 shrink-0 gap-4">
         <AnimatePresence>
           {showTextInput && (
@@ -607,6 +502,14 @@ export default function App() {
                   className="flex-1 bg-transparent border-none outline-none text-white placeholder:text-white/30 text-sm"
                   autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={isDictating ? stopDictation : startDictation}
+                  className={`p-2 rounded-full transition-colors ${isDictating ? 'bg-red-500 animate-pulse' : 'hover:bg-white/10 text-white/60'}`}
+                  title={isDictating ? "Stop Voice Typing" : "Voice Typing"}
+                >
+                  <Mic size={16} />
+                </button>
                 <button 
                   type="submit"
                   disabled={!textInput.trim()}
