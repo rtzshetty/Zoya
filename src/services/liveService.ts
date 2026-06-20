@@ -66,7 +66,7 @@ export class LiveSessionManager {
         console.log("Requesting microphone with constraints:", constraints);
         this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (micError: any) {
-        console.error("Microphone access error details:", micError);
+        console.warn("Microphone access warning details:", micError);
         
         // Try fallback with simplest constraints
         if (micError.name === 'OverconstrainedError' || micError.name === 'ConstraintNotSatisfiedError') {
@@ -74,7 +74,7 @@ export class LiveSessionManager {
           try {
             this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
           } catch (retryError: any) {
-            console.error("Fallback microphone access error:", retryError);
+            console.warn("Fallback microphone access warning:", retryError);
             throw new Error(retryError.name === 'NotAllowedError' ? "Permission denied" : "Microphone error: " + retryError.message);
           }
         } else {
@@ -127,7 +127,7 @@ export class LiveSessionManager {
           session.sendRealtimeInput({
             audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
           });
-        }).catch(err => console.error("Error sending audio", err));
+        }).catch(err => console.warn("Error sending audio", err));
       };
 
       this.source.connect(this.processor);
@@ -238,7 +238,7 @@ export class LiveSessionManager {
             this.stop();
           },
           onerror: (err: any) => {
-            console.error("Live API Error:", err);
+            console.warn("Live API Error:", err);
             const errMsg = err?.message || String(err);
             if (errMsg.includes("Resource has been exhausted") || errMsg.includes("quota")) {
                 this.onError("QUOTA_EXCEEDED");
@@ -251,8 +251,9 @@ export class LiveSessionManager {
       });
 
     } catch (error) {
-      console.error("Failed to start Live Session:", error);
+      console.warn("Failed to start Live Session:", error);
       this.stop();
+      throw error;
     }
   }
 
@@ -293,7 +294,7 @@ export class LiveSessionManager {
         }
       };
     } catch (e) {
-      console.error("Error playing chunk", e);
+      console.warn("Error playing chunk", e);
     }
   }
 

@@ -87,7 +87,7 @@ export default function App() {
       setTextInput(transcript);
     };
     recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
+      console.warn("Speech recognition warning:", event.error);
       setIsDictating(false);
     };
 
@@ -273,7 +273,7 @@ export default function App() {
                 setActiveMap({ origin: origin || undefined, destination });
               }
             } catch (e) {
-              console.error("Failed to parse directions URL", e);
+              console.warn("Failed to parse directions URL", e);
             }
           } else {
             setTimeout(() => {
@@ -289,7 +289,7 @@ export default function App() {
 
         await session.start(userLocation || undefined);
       } catch (e: any) {
-        console.error("Failed to start session", e);
+        console.warn("Failed to start session", e);
         const msg = e?.message || "";
         if (msg === "Permission denied") {
           setErrorType("PERMISSION_DENIED");
