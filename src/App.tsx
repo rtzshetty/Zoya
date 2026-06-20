@@ -207,25 +207,36 @@ export default function App() {
         }
       }, 1500);
     } else {
-      const zoyaResponse = await getZoyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
-      responseText = zoyaResponse.text;
-      
-      const zoyaMsg: ChatMessage = { 
-        id: Date.now().toString() + "-z", 
-        sender: "zoya", 
-        text: responseText,
-        sources: zoyaResponse.sources
-      };
-      setMessages((prev) => [...prev, zoyaMsg]);
-      
-      if (!isMuted) {
-        setAppState("speaking");
-        const audioBase64 = await getZoyaAudio(responseText);
-        if (audioBase64) {
-          await playPCM(audioBase64);
+      try {
+        const zoyaResponse = await getZoyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
+        responseText = zoyaResponse.text;
+        
+        const zoyaMsg: ChatMessage = { 
+          id: Date.now().toString() + "-z", 
+          sender: "zoya", 
+          text: responseText,
+          sources: zoyaResponse.sources
+        };
+        setMessages((prev) => [...prev, zoyaMsg]);
+        
+        if (!isMuted) {
+          setAppState("speaking");
+          const audioBase64 = await getZoyaAudio(responseText);
+          if (audioBase64) {
+            await playPCM(audioBase64);
+          }
         }
+      } catch (err: any) {
+        console.warn("Zoya API Error:", err);
+        const errMsg = err?.message || String(err);
+        setMessages((prev) => [...prev, {
+          id: Date.now().toString() + "-error",
+          sender: "zoya",
+          text: "Oops! Something went wrong on my end. " + (errMsg.includes("API_KEY") ? "Please set your Gemini API Key." : "Try again later.")
+        }]);
+      } finally {
+        setAppState("idle");
       }
-      setAppState("idle");
     }
   }, [isMuted, isSessionActive]);
 

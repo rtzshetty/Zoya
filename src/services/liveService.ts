@@ -16,7 +16,7 @@ Take all information from www.google.com. If researching essays by a person, use
 Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak in Hinglish (Roman Hindi + English).`;
 
 // Use VITE_ prefix for production builds (standard Vite behavior)
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== "undefined" ? process.env.GEMINI_API_KEY : undefined);
 
 export class LiveSessionManager {
   private ai!: GoogleGenAI;
