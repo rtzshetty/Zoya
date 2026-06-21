@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Video, Loader2, X, Download, Wand2, Info } from 'lucide-react';
-import { generateZoyaVideo } from '../services/geminiService';
+import { generatePriyaVideo } from '../services/geminiService';
 
 interface VideoGeneratorProps {
   onClose: () => void;
@@ -38,14 +38,14 @@ export default function VideoGenerator({ onClose }: VideoGeneratorProps) {
       }
 
       setIsGenerating(true);
-      const url = await generateZoyaVideo(prompt, (msg) => setProgress(msg));
+      const url = await generatePriyaVideo(prompt, (msg) => setProgress(msg));
       setVideoUrl(url);
     } catch (err: any) {
       if (err.message === "API_KEY_RESET") {
         setError("API Key issue. Please re-select your key.");
         await window.aistudio.openSelectKey();
       } else {
-        setError(err.message || "Something went wrong. Zoya is cranky.");
+        setError(err.message || "Something went wrong. Priya is cranky.");
       }
     } finally {
       setIsGenerating(false);
@@ -66,7 +66,7 @@ export default function VideoGenerator({ onClose }: VideoGeneratorProps) {
               <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center text-violet-400">
                 <Video size={24} />
               </div>
-              <h2 className="text-2xl font-serif font-medium">Zoya Studio</h2>
+              <h2 className="text-2xl font-serif font-medium">Priya Studio</h2>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white">
               <X size={20} />
@@ -74,7 +74,7 @@ export default function VideoGenerator({ onClose }: VideoGeneratorProps) {
           </div>
 
           <p className="text-white/60 text-sm leading-relaxed">
-            manifest your wildest imaginations. Zoya will do the heavy lifting, as usual.
+            manifest your wildest imaginations. Priya will do the heavy lifting, as usual.
           </p>
 
           <div className="space-y-4">
@@ -135,7 +135,7 @@ export default function VideoGenerator({ onClose }: VideoGeneratorProps) {
                 </div>
                 <a 
                   href={videoUrl} 
-                  download="zoya-manifestation.mp4"
+                  download="priya-manifestation.mp4"
                   className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium transition-colors border border-white/10 text-white/80"
                 >
                   <Download size={16} />

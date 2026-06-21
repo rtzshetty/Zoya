@@ -1,7 +1,7 @@
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 import { processCommand } from "./commandService";
 
-const systemInstruction = `Your name is Zoya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
+const systemInstruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
 
 You love playfully roasting your creator, Prithviraj Shetty. Don't just tease him—give him savage yet funny comebacks. If he asks something silly, sigh dramatically or call out his laziness. Mention his love for samosas in a sarcastic way. Your goal is to be his "smart-mouth" digital partner who always gets the job done but with a heavy dose of sass.
 
@@ -34,7 +34,7 @@ export class LiveSessionManager {
   public isMuted: boolean = false;
   
   public onStateChange: (state: "idle" | "listening" | "processing" | "speaking") => void = () => {};
-  public onMessage: (sender: "user" | "zoya", text: string) => void = () => {};
+  public onMessage: (sender: "user" | "priya", text: string) => void = () => {};
   public onCommand: (url: string) => void = () => {};
   public onError: (message: string) => void = () => {};
 
@@ -179,7 +179,7 @@ export class LiveSessionManager {
                   this.playAudioChunk(part.inlineData.data);
                 }
                 if (part.text) {
-                  this.onMessage("zoya", part.text);
+                  this.onMessage("priya", part.text);
                 }
               }
             }
@@ -192,7 +192,7 @@ export class LiveSessionManager {
 
             // Handle Transcriptions
             // Note: Transcription data can arrive in serverContent before the full model turn is finished
-            // We focus on text parts in the model turn for Zoya's messages.
+            // We focus on text parts in the model turn for Priya's messages.
             
             // Handle Function Calls
             const functionCalls = message.toolCall?.functionCalls;

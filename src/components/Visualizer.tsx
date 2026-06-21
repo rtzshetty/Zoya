@@ -19,7 +19,7 @@ export default function Visualizer({ state }: VisualizerProps) {
     return { animationDuration: "4s" };
   };
 
-  // JARVIS color palette (Cyan/Blue) with Zoya's personality (Violet/Pink hints)
+  // JARVIS color palette (Cyan/Blue) with Priya's personality (Violet/Pink hints)
   const getTheme = () => {
     switch (state) {
       case "listening": return { color: "rgba(139, 92, 246, 1)", glow: "shadow-violet-500/60", border: "border-violet-400" };
@@ -79,7 +79,7 @@ export default function Visualizer({ state }: VisualizerProps) {
           className="font-bold tracking-[0.3em] text-xl md:text-3xl lg:text-4xl text-white"
           style={{ textShadow: `0 0 10px ${theme.color}, 0 0 20px ${theme.color}` }}
         >
-          ZOYA
+          PRIYA
         </div>
       </div>
     </div>

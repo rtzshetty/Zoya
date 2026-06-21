@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save } from "lucide-react";
-import { getZoyaResponse, getZoyaAudio, resetZoyaSession } from "./services/geminiService";
+import { getPriyaResponse, getPriyaAudio, resetPriyaSession } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
 import Visualizer from "./components/Visualizer";
@@ -9,12 +9,13 @@ import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
+import { saveMessageToSupabase, fetchMessagesFromSupabase, clearMessagesFromSupabase } from "./services/supabaseService";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
 interface ChatMessage {
   id: string;
-  sender: "user" | "zoya";
+  sender: "user" | "priya";
   text: string;
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
 }
@@ -29,7 +30,7 @@ declare global {
 export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem("zoya_chat_local_cache");
+    const saved = localStorage.getItem("priya_chat_local_cache");
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -43,8 +44,26 @@ export default function App() {
 
   useEffect(() => {
     messagesRef.current = messages;
-    localStorage.setItem("zoya_chat_local_cache", JSON.stringify(messages));
+    localStorage.setItem("priya_chat_local_cache", JSON.stringify(messages));
   }, [messages]);
+
+  useEffect(() => {
+    // Load from Supabase on mount
+    fetchMessagesFromSupabase().then(fetchedMessages => {
+      if (fetchedMessages && fetchedMessages.length > 0) {
+        setMessages(fetchedMessages);
+      } else if (messages.length === 0) {
+        const initialMsg: ChatMessage = { id: "1", sender: "priya", text: "Namaste! I'm Priya. How can I entertain you today?" };
+        setMessages([initialMsg]);
+        saveMessageToSupabase(initialMsg);
+      }
+    });
+  }, []);
+
+  const addMessage = (msg: ChatMessage) => {
+    setMessages(prev => [...prev, msg]);
+    saveMessageToSupabase(msg);
+  };
 
   const [isMuted, setIsMuted] = useState(false);
 
@@ -104,15 +123,6 @@ export default function App() {
   const liveSessionRef = useRef<LiveSessionManager | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Initial greeting if no messages exist
-    if (messages.length === 0) {
-      setMessages([
-        { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. How can I entertain you today?" }
-      ]);
-    }
-  }, []);
-
   const handleDownloadChat = () => {
     if (messages.length === 0) return;
     const conversation = messages
@@ -123,7 +133,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Zoya_Chat_${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `Priya_Chat_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -171,7 +181,7 @@ export default function App() {
     }
 
     const userMsg: ChatMessage = { id: Date.now().toString(), sender: "user", text: finalTranscript };
-    setMessages((prev) => [...prev, userMsg]);
+    addMessage(userMsg);
     
     if (isSessionActive && liveSessionRef.current) {
       liveSessionRef.current.sendText(finalTranscript);
@@ -179,13 +189,13 @@ export default function App() {
     }
 
     setAppState("processing");
-    const commandResult = processCommand(finalTranscript);
+    const commandResult = await processCommand(finalTranscript);
     let responseText = "";
 
     if (commandResult.isBrowserAction) {
       responseText = commandResult.action;
-      const zoyaMsg: ChatMessage = { id: Date.now().toString() + "-z", sender: "zoya", text: responseText };
-      setMessages((prev) => [...prev, zoyaMsg]);
+      const priyaMsg: ChatMessage = { id: Date.now().toString() + "-z", sender: "priya", text: responseText };
+      addMessage(priyaMsg);
       
       if (commandResult.mapData) {
         setActiveMap(commandResult.mapData);
@@ -193,7 +203,7 @@ export default function App() {
 
       if (!isMuted) {
         setAppState("speaking");
-        const audioBase64 = await getZoyaAudio(responseText);
+        const audioBase64 = await getPriyaAudio(responseText);
         if (audioBase64) {
           await playPCM(audioBase64);
         }
@@ -203,37 +213,41 @@ export default function App() {
 
       setTimeout(() => {
         if (commandResult.url) {
-          window.open(commandResult.url, "_blank");
+          if (commandResult.url.startsWith("tel:") || commandResult.url.startsWith("mailto:")) {
+            window.location.href = commandResult.url;
+          } else {
+            window.open(commandResult.url, "_blank");
+          }
         }
       }, 1500);
     } else {
       try {
-        const zoyaResponse = await getZoyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
-        responseText = zoyaResponse.text;
+        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
+        responseText = priyaResponse.text;
         
-        const zoyaMsg: ChatMessage = { 
+        const priyaMsg: ChatMessage = { 
           id: Date.now().toString() + "-z", 
-          sender: "zoya", 
+          sender: "priya", 
           text: responseText,
-          sources: zoyaResponse.sources
+          sources: priyaResponse.sources
         };
-        setMessages((prev) => [...prev, zoyaMsg]);
+        addMessage(priyaMsg);
         
         if (!isMuted) {
           setAppState("speaking");
-          const audioBase64 = await getZoyaAudio(responseText);
+          const audioBase64 = await getPriyaAudio(responseText);
           if (audioBase64) {
             await playPCM(audioBase64);
           }
         }
       } catch (err: any) {
-        console.warn("Zoya API Error:", err);
+        console.warn("Priya API Error:", err);
         const errMsg = err?.message || String(err);
-        setMessages((prev) => [...prev, {
+        addMessage({
           id: Date.now().toString() + "-error",
-          sender: "zoya",
+          sender: "priya",
           text: "Oops! Something went wrong on my end. " + (errMsg.includes("API_KEY") ? "Please set your Gemini API Key." : "Try again later.")
-        }]);
+        });
       } finally {
         setAppState("idle");
       }
@@ -256,11 +270,11 @@ export default function App() {
         liveSessionRef.current = null;
       }
       setAppState("idle");
-      resetZoyaSession();
+      resetPriyaSession();
     } else {
       try {
         setIsSessionActive(true);
-        resetZoyaSession();
+        resetPriyaSession();
         
         const session = new LiveSessionManager();
         session.isMuted = isMuted;
@@ -271,7 +285,8 @@ export default function App() {
         };
         
         session.onMessage = (sender, text) => {
-          setMessages((prev) => [...prev, { id: Date.now().toString() + "-" + sender, sender, text }]);
+          const newMsg: ChatMessage = { id: Date.now().toString() + "-" + sender, sender, text };
+          addMessage(newMsg);
         };
         
         session.onCommand = (url) => {
@@ -360,7 +375,7 @@ export default function App() {
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center font-bold text-sm">
             Z
           </div>
-          <h1 className="text-xl font-serif font-medium tracking-wide opacity-90">Zoya</h1>
+          <h1 className="text-xl font-serif font-medium tracking-wide opacity-90">Priya</h1>
         </div>
         
         <div className="flex items-center gap-2">
@@ -376,11 +391,11 @@ export default function App() {
               <button
                 onClick={() => {
                   if (confirm("Clear local chat history?")) {
-                    setMessages([
-                      { id: "1", sender: "zoya", text: "Namaste! I'm Zoya. How can I entertain you today?" }
-                    ]);
-                    localStorage.removeItem("zoya_chat_local_cache");
-                    resetZoyaSession();
+                    const initialMsg: ChatMessage = { id: "1", sender: "priya", text: "Namaste! I'm Priya. How can I entertain you today?" };
+                    setMessages([initialMsg]);
+                    localStorage.removeItem("priya_chat_local_cache");
+                    clearMessagesFromSupabase().then(() => saveMessageToSupabase(initialMsg));
+                    resetPriyaSession();
                   }
                 }}
                 className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-white/10"
@@ -509,7 +524,7 @@ export default function App() {
                   type="text"
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Type a message to Zoya..."
+                  placeholder="Type a message to Priya..."
                   className="flex-1 bg-transparent border-none outline-none text-white placeholder:text-white/30 text-sm"
                   autoFocus
                 />
@@ -538,7 +553,7 @@ export default function App() {
                   className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] uppercase tracking-widest text-violet-300/60 hover:text-violet-300 hover:bg-white/10 transition-all font-mono"
                 >
                   <Video size={12} />
-                  Zoya Studio
+                  Priya Studio
                 </button>
               </div>
             </motion.div>

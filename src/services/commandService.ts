@@ -1,24 +1,61 @@
-export function processCommand(command: string): {
+import { Contacts } from '@capacitor-community/contacts';
+import { Capacitor } from '@capacitor/core';
+import { AppLauncher } from '@capacitor/app-launcher';
+
+export async function processCommand(command: string): Promise<{
   action: string;
   url?: string;
   isBrowserAction: boolean;
   mapData?: { origin?: string; destination: string };
-} {
+}> {
   const lowerCmd = command.toLowerCase().trim();
 
-  // General Browsing: "Open [website name]"
+  // General Browsing/App Opening: "Open [app/website name]"
   const openMatch = lowerCmd.match(/^open\s+(.+)$/);
   if (
     openMatch &&
     !lowerCmd.includes("youtube") &&
     !lowerCmd.includes("spotify")
   ) {
-    let website = openMatch[1].trim().replace(/\s+/g, "");
+    let targetName = openMatch[1].trim().replace(/\s+app$/, ""); // remove " app" if present
+    
+    if (Capacitor.isNativePlatform()) {
+      const targetLower = targetName.toLowerCase().replace(/\s+/g, "");
+      const appPackages: Record<string, string> = {
+        youtube: 'com.google.android.youtube',
+        spotify: 'com.spotify.music',
+        whatsapp: 'com.whatsapp',
+        instagram: 'com.instagram.android',
+        facebook: 'com.facebook.katana',
+        twitter: 'com.twitter.android',
+        x: 'com.twitter.android',
+        gmail: 'com.google.android.gm',
+        maps: 'com.google.android.apps.maps',
+        chrome: 'com.android.chrome',
+        calculator: 'com.google.android.calculator',
+        clock: 'com.google.android.deskclock'
+      };
+
+      if (appPackages[targetLower]) {
+         try {
+           await AppLauncher.openUrl({ url: appPackages[targetLower] });
+           return {
+             action: `Opening ${targetName} for you...`,
+             isBrowserAction: true
+           };
+         } catch (e) {
+           console.log("AppLauncher error", e);
+           // Fall through to web search
+         }
+      }
+    }
+
+    let website = targetName.replace(/\s+/g, "");
     if (!website.includes(".")) {
       website += ".com";
     }
     return {
-      action: `Opening ${openMatch[1]} for you, ugh.`,
+      action: `Opening ${targetName} for you, ugh.`,
       url: `https://www.${website}`,
       isBrowserAction: true,
     };
@@ -58,6 +95,59 @@ export function processCommand(command: string): {
       url: `https://web.whatsapp.com/send?phone=${number}&text=${message}`,
       isBrowserAction: true,
     };
+  }
+
+  // Phone call: "Call [number]" or "Call [name]"
+  const callMatch = lowerCmd.match(/^call\s+(.+)$/);
+  if (callMatch) {
+    const target = callMatch[1].trim();
+    // If it contains mostly digits, it's a number
+    const numberMatch = target.match(/[\d\+\s\-]{4,}/);
+    if (numberMatch) {
+      const cleanNumber = numberMatch[0].replace(/[\s\-]/g, "");
+      return {
+        action: `Dialing ${cleanNumber}... Let's see if they answer.`,
+        url: `tel:${cleanNumber}`,
+        isBrowserAction: true,
+      };
+    } else {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          let permStatus = await Contacts.checkPermissions();
+          if (permStatus.contacts !== 'granted') {
+            permStatus = await Contacts.requestPermissions();
+          }
+          if (permStatus.contacts === 'granted') {
+            const result = await Contacts.getContacts({ projection: { name: true, phones: true } });
+            const found = result.contacts.find(c => {
+              const nameStr = [c.name?.given, c.name?.middle, c.name?.family].map(n => n || "").join(" ").toLowerCase();
+              return nameStr.includes(target) || (c.name?.display && c.name?.display.toLowerCase().includes(target));
+            });
+            
+            if (found && found.phones && found.phones.length > 0) {
+              const numberToCall = found.phones[0].number;
+              const displayName = found.name?.display || target;
+              return {
+                 action: `Calling ${displayName}... Let's see if they pick up.`,
+                 url: `tel:${numberToCall}`,
+                 isBrowserAction: true
+              };
+            } else {
+              return { action: `I couldn't find a contact named ${target}.`, isBrowserAction: true };
+            }
+          } else {
+             return { action: "Please allow contact permissions so I can call them.", isBrowserAction: true };
+          }
+        } catch (e) {
+          return { action: `Oops, I encountered an error while accessing your contacts.`, isBrowserAction: true };
+        }
+      } else {
+        return {
+          action: `I can't access your mobile contacts from the web! Try calling their number directly like "Call 9876543210".`,
+          isBrowserAction: true,
+        };
+      }
+    }
   }
 
   // Maps/Directions: "Directions from [place1] to [place2]"

@@ -36,10 +36,10 @@ export default function PermissionModal({ onClose, errorType = 'PERMISSION_DENIE
         </h2>
         <p className="text-white/60 text-sm mb-6 leading-relaxed">
           {isQuota 
-            ? "Zoya has been talking too much today! You've reached the Gemini API usage limit. Please wait a while or try again later."
+            ? "Priya has been talking too much today! You've reached the Gemini API usage limit. Please wait a while or try again later."
             : isMicError 
-              ? "Something went wrong with your microphone. Zoya is listening, but she only hears static! Maybe check if another app is using it?"
-              : "Zoya cannot hear you because microphone access is blocked. She's sassy, but she's not a psychic!"}
+              ? "Something went wrong with your microphone. Priya is listening, but she only hears static! Maybe check if another app is using it?"
+              : "Priya cannot hear you because microphone access is blocked. She's sassy, but she's not a psychic!"}
         </p>
         
         {!isQuota ? (
@@ -90,7 +90,7 @@ export default function PermissionModal({ onClose, errorType = 'PERMISSION_DENIE
             onClick={onClose}
             className="w-full py-3 px-4 bg-white/5 text-white/70 font-medium rounded-xl hover:bg-white/10 transition-colors"
           >
-            Got it, Zoya
+            Got it, Priya
           </button>
         </div>
       </motion.div>

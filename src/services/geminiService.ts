@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 
-const systemInstruction = `Your name is Zoya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
+const systemInstruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
 
 You love playfully roasting your creator, Prithviraj Shetty. Don't just tease him—give him savage yet funny comebacks. If he asks something silly, sigh dramatically or call out his laziness. Mention his love for samosas in a sarcastic way. Your goal is to be his "smart-mouth" digital partner who always gets the job done but with a heavy dose of sass.
 
@@ -16,11 +16,11 @@ Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sa
 
 let chatSession: any = null;
 
-export function resetZoyaSession() {
+export function resetPriyaSession() {
   chatSession = null;
 }
 
-export interface ZoyaResponse {
+export interface PriyaResponse {
   text: string;
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
 }
@@ -28,11 +28,11 @@ export interface ZoyaResponse {
 // Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== "undefined" ? process.env.GEMINI_API_KEY : undefined);
 
-export async function getZoyaResponse(
+export async function getPriyaResponse(
   prompt: string, 
-  history: { sender: "user" | "zoya", text: string }[] = [],
+  history: { sender: "user" | "priya", text: string }[] = [],
   location?: { lat: number; lng: number }
-): Promise<ZoyaResponse> {
+): Promise<PriyaResponse> {
   try {
     if (!API_KEY) {
       throw new Error("GEMINI_API_KEY is not defined in environment variables.");
@@ -115,7 +115,7 @@ export async function getZoyaResponse(
   }
 }
 
-export async function getZoyaAudio(text: string): Promise<string | null> {
+export async function getPriyaAudio(text: string): Promise<string | null> {
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY! });
     const response = await ai.models.generateContent({
@@ -138,11 +138,11 @@ export async function getZoyaAudio(text: string): Promise<string | null> {
   }
 }
 
-export async function generateZoyaVideo(prompt: string, onProgress: (msg: string) => void): Promise<string | null> {
+export async function generatePriyaVideo(prompt: string, onProgress: (msg: string) => void): Promise<string | null> {
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
-    onProgress("Zoya is manifesting your vision...");
+    onProgress("Priya is manifesting your vision...");
     
     let operation = await ai.models.generateVideos({
       model: "veo-3.1-lite-generate-preview",
