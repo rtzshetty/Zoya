@@ -367,6 +367,8 @@ export default function App() {
     setShowTextInput(false);
   };
 
+  const [isGuest, setIsGuest] = useState(false);
+
   if (isLoadingAuth) {
     return (
       <div className="h-[100dvh] w-screen bg-[#050505] text-white flex items-center justify-center">
@@ -375,8 +377,8 @@ export default function App() {
     );
   }
 
-  if (!authSession && supabase) {
-    return <AuthScreen />;
+  if (!authSession && supabase && !isGuest) {
+    return <AuthScreen onGuest={() => setIsGuest(true)} />;
   }
 
   return (
