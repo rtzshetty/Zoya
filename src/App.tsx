@@ -10,6 +10,7 @@ import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 import { saveMessageToSupabase, fetchMessagesFromSupabase, clearMessagesFromSupabase } from "./services/supabaseService";
+import { AssistantMode, AssistantLanguage } from "./utils/promptUtils";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -81,6 +82,8 @@ export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeMap, setActiveMap] = useState<{ origin?: string; destination: string } | null>(null);
+  const [mode, setMode] = useState<AssistantMode>("personal");
+  const [language, setLanguage] = useState<AssistantLanguage>("hinglish");
   const [isDictating, setIsDictating] = useState(false);
   const recognitionRef = useRef<any>(null);
 
@@ -222,7 +225,7 @@ export default function App() {
       }, 1500);
     } else {
       try {
-        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined);
+        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined, mode, language);
         responseText = priyaResponse.text;
         
         const priyaMsg: ChatMessage = { 
@@ -313,7 +316,7 @@ export default function App() {
           setShowPermissionModal(true);
         };
 
-        await session.start(userLocation || undefined);
+        await session.start(userLocation || undefined, mode, language);
       } catch (e: any) {
         console.warn("Failed to start session", e);
         const msg = e?.message || "";
@@ -375,7 +378,39 @@ export default function App() {
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center font-bold text-sm">
             Z
           </div>
-          <h1 className="text-xl font-serif font-medium tracking-wide opacity-90">Priya</h1>
+          <h1 className="text-xl font-serif font-medium tracking-wide opacity-90 hidden sm:block">Priya</h1>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center ml-2 lg:ml-6 gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono">
+            <div className="flex bg-white/5 p-0.5 sm:p-1 rounded-full border border-white/10">
+              <button
+                onClick={() => setMode("personal")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full transition-colors ${mode === "personal" ? "bg-violet-500/30 text-violet-300" : "text-white/50 hover:text-white/80"}`}
+              >
+                Personal
+              </button>
+              <button
+                onClick={() => setMode("physiological")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full transition-colors ${mode === "physiological" ? "bg-teal-500/30 text-teal-300" : "text-white/50 hover:text-white/80"}`}
+              >
+                Physiological
+              </button>
+            </div>
+
+            <div className="flex bg-white/5 p-0.5 sm:p-1 rounded-full border border-white/10">
+              <button
+                onClick={() => setLanguage("english")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full transition-colors ${language === "english" ? "bg-white/20 text-white" : "text-white/50 hover:text-white/80"}`}
+              >
+                English
+              </button>
+              <button
+                onClick={() => setLanguage("hinglish")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full transition-colors ${language === "hinglish" ? "bg-white/20 text-white" : "text-white/50 hover:text-white/80"}`}
+              >
+                Hinglish
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="flex items-center gap-2">

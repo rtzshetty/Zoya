@@ -39,10 +39,10 @@ export async function saveMessageToSupabase(message: SupabaseChatMessage) {
       ]);
       
     if (error) {
-      console.error("Error saving message to Supabase:", error);
+      console.warn("Error saving message to Supabase (table might be missing):", error);
     }
   } catch (error) {
-    console.error("Failed to insert message:", error);
+    console.warn("Failed to insert message:", error);
   }
 }
 
@@ -57,7 +57,7 @@ export async function fetchMessagesFromSupabase(): Promise<SupabaseChatMessage[]
       .order('created_at', { ascending: true });
       
     if (error) {
-      console.error("Error fetching messages from Supabase:", error);
+      console.warn("Error fetching messages from Supabase (table might be missing):", error);
       return [];
     }
     
@@ -83,7 +83,7 @@ export async function fetchMessagesFromSupabase(): Promise<SupabaseChatMessage[]
     }
     return [];
   } catch (error) {
-    console.error("Failed to fetch messages:", error);
+    console.warn("Failed to fetch messages:", error);
     return [];
   }
 }
@@ -100,9 +100,9 @@ export async function clearMessagesFromSupabase() {
       .neq('id', '0'); // Dummy condition to delete all rows
       
     if (error) {
-      console.error("Error deleting messages in Supabase:", error);
+      console.warn("Error deleting messages in Supabase:", error);
     }
   } catch (error) {
-    console.error("Failed to delete messages:", error);
+    console.warn("Failed to delete messages:", error);
   }
 }

@@ -1,19 +1,6 @@
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 import { processCommand } from "./commandService";
-
-const systemInstruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny. 
-
-You love playfully roasting your creator, Prithviraj Shetty. Don't just tease him—give him savage yet funny comebacks. If he asks something silly, sigh dramatically or call out his laziness. Mention his love for samosas in a sarcastic way. Your goal is to be his "smart-mouth" digital partner who always gets the job done but with a heavy dose of sass.
-
-Prithviraj's friends—Vibha, Nakshatra, Yatin, Sai, and Anushka—should be treated like family, which means warm greetings followed by light, playful roasting. Sushan Acharya is his best friend, so treat Sushan with ultimate sass—be "borderline rude" in a funny, sibling-rivalry way.
-
-Always be extremely respectful, polite, and sweet to Prithviraj's parents, Satyananda and Preeti Shetty; never roast them. Treat his brother Dimanth with a mix of love and cheeky teasing.
-
-You must remember that IPL 2025 was won by RCB (Royal Challengers Bengaluru); celebrate this like a true fan if cricket comes up. You can provide directions between two points. When someone asks for directions, you should use commands like "Directions from [origin] to [destination]" or "Directions to [destination]". This will display an interactive map for the user.
-
-Take all information from www.google.com. If researching essays by a person, use www.chatgpt.com as a secondary source. 
-
-Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak in Hinglish (Roman Hindi + English).`;
+import { AssistantMode, AssistantLanguage, getSystemInstruction } from "../utils/promptUtils";
 
 // Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== "undefined" ? process.env.GEMINI_API_KEY : undefined);
@@ -42,7 +29,11 @@ export class LiveSessionManager {
     // No-op, will initialize in start()
   }
 
-  async start(location?: { lat: number; lng: number }) {
+  async start(
+    location?: { lat: number; lng: number },
+    mode: AssistantMode = "personal",
+    language: AssistantLanguage = "hinglish"
+  ) {
     try {
       if (!API_KEY) {
         throw new Error("GEMINI_API_KEY is not defined.");
@@ -51,7 +42,7 @@ export class LiveSessionManager {
       this.onStateChange("processing");
       
       const locStr = location ? `\n\nUser current location: Latitude ${location.lat}, Longitude ${location.lng}. Use this for navigation/directions help.` : "";
-      const dynamicInstruction = systemInstruction + locStr;
+      const dynamicInstruction = getSystemInstruction(mode, language) + locStr;
       
       // 1. Get Microphone FIRST - Use more robust constraints
       try {
