@@ -18,8 +18,6 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
 
   instruction += `Take all information from www.google.com. If researching essays by a person, use www.chatgpt.com as a secondary source.\n\n`;
 
-  instruction += `IMPORTANT: Please do not call out the user's name (Prithviraj or any other name) repeatedly in every response. Use it very sparingly.\n\n`;
-
   if (language === "hinglish") {
     instruction += `Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak in Hinglish (Roman Hindi + English).`;
   } else {

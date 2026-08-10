@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save } from "lucide-react";
 import { getPriyaResponse, getPriyaAudio, resetPriyaSession } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
@@ -9,9 +9,8 @@ import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
-import { saveMessageToSupabase, fetchMessagesFromSupabase, clearMessagesFromSupabase, supabase } from "./services/supabaseService";
+import { saveMessageToSupabase, fetchMessagesFromSupabase, clearMessagesFromSupabase } from "./services/supabaseService";
 import { AssistantMode, AssistantLanguage } from "./utils/promptUtils";
-import AuthScreen from "./components/AuthScreen";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -30,29 +29,6 @@ declare global {
 }
 
 export default function App() {
-  const [authSession, setAuthSession] = useState<any>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-
-  useEffect(() => {
-    if (!supabase) {
-      setIsLoadingAuth(false);
-      return;
-    }
-    
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthSession(session);
-      setIsLoadingAuth(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
   const [appState, setAppState] = useState<AppState>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem("priya_chat_local_cache");
@@ -367,20 +343,6 @@ export default function App() {
     setShowTextInput(false);
   };
 
-  const [isGuest, setIsGuest] = useState(false);
-
-  if (isLoadingAuth) {
-    return (
-      <div className="h-[100dvh] w-screen bg-[#050505] text-white flex items-center justify-center">
-        <Loader2 className="animate-spin text-violet-500" size={32} />
-      </div>
-    );
-  }
-
-  if (!authSession && supabase && !isGuest) {
-    return <AuthScreen onGuest={() => setIsGuest(true)} />;
-  }
-
   return (
     <div className="h-[100dvh] w-screen bg-[#050505] text-white flex flex-col items-center justify-between font-sans relative overflow-hidden m-0 p-0">
       {showPermissionModal && (
@@ -452,15 +414,6 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
-          {authSession && supabase && (
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
-              title="Sign Out"
-            >
-              <LogOut size={18} className="opacity-70" />
-            </button>
-          )}
           {messages.length > 0 && (
             <>
               <button
