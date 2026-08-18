@@ -20,7 +20,7 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
     instruction += `REFERENCE: You can reference psychological concepts and data from the American Psychological Association when helpful: https://www.apa.org/pubs/databases/psycinfo\n\n`;
   }
 
-  instruction += `Take all information from www.google.com. If researching essays by a person, use www.chatgpt.com as a secondary source.\n\n`;
+  instruction += `If researching essays by a person, use www.chatgpt.com as a secondary source.\n\n`;
 
   instruction += `IMPORTANT: Please do not call out the user's name (Prithviraj or any other name) repeatedly in every response. Use it very sparingly.\n\n`;
 

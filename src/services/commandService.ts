@@ -70,12 +70,12 @@ export async function processCommand(command: string): Promise<{
     };
   }
 
-  // General Search: "search for [query]" or "search [query]"
-  const searchMatch = lowerCmd.match(/^search\s+(?:for\s+)?(.+)$/);
-  if (searchMatch) {
-    const query = encodeURIComponent(searchMatch[1].trim());
+  // General Search explicitly requesting Google: "search google for [query]" or "search [query] on google"
+  const googleSearchMatch = lowerCmd.match(/^search\s+google\s+(?:for\s+)?(.+)$/) || lowerCmd.match(/^search\s+((?:for\s+)?.+?)\s+(?:on|in)\s+google$/);
+  if (googleSearchMatch) {
+    const query = encodeURIComponent(googleSearchMatch[1].trim());
     return {
-      action: `Searching Google for ${searchMatch[1]}...`,
+      action: `Searching Google for ${googleSearchMatch[1]}...`,
       url: `https://www.google.com/search?q=${query}`,
       isBrowserAction: true
     };

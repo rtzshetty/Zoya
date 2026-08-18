@@ -138,7 +138,7 @@ export class LiveSessionManager {
             functionDeclarations: [
               {
                 name: "executeBrowserAction",
-                description: "Open a website, perform a Google search, or perform a browser action (like YouTube or Spotify).",
+                description: "Open a website, perform a Google search, or perform a browser action (like YouTube or Spotify). STRICT RULE: Do NOT use the 'search' actionType unless the user explicitly and strictly tells you to 'search on google' or 'search in google'. Do not use it just because they ask a general question.",
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
