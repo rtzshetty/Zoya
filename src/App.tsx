@@ -7,10 +7,10 @@ import Visualizer from "./components/Visualizer";
 import PermissionModal from "./components/PermissionModal";
 import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
+import WelcomeScreen from "./components/WelcomeScreen";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 import { AssistantMode, AssistantLanguage } from "./utils/promptUtils";
-import AuthScreen from "./components/AuthScreen";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -29,8 +29,14 @@ declare global {
 }
 
 export default function App() {
-  const [authSession, setAuthSession] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [userName, setUserName] = useState<string>(() => {
+    return localStorage.getItem("priya_user_name") || "";
+  });
+
+  const handleNameSubmit = (name: string) => {
+    localStorage.setItem("priya_user_name", name);
+    setUserName(name);
+  };
 
   const [appState, setAppState] = useState<AppState>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -221,7 +227,7 @@ export default function App() {
       }, 1500);
     } else {
       try {
-        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined, mode, language);
+        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined, mode, language, userName);
         responseText = priyaResponse.text;
         
         const priyaMsg: ChatMessage = { 
@@ -312,7 +318,7 @@ export default function App() {
           setShowPermissionModal(true);
         };
 
-        await session.start(userLocation || undefined, mode, language);
+        await session.start(userLocation || undefined, mode, language, userName);
       } catch (e: any) {
         console.warn("Failed to start session", e);
         const msg = e?.message || "";
@@ -339,8 +345,8 @@ export default function App() {
     setShowTextInput(false);
   };
 
-  if (!authSession && !isGuest) {
-    return <AuthScreen onAuthSuccess={setAuthSession} onGuest={() => setIsGuest(true)} />;
+  if (!userName) {
+    return <WelcomeScreen onNameSubmit={handleNameSubmit} />;
   }
 
   return (
@@ -414,18 +420,6 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
-          {authSession && (
-            <button
-              onClick={() => {
-                setAuthSession(null);
-                setIsGuest(false);
-              }}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
-              title="Sign Out"
-            >
-              <LogOut size={18} className="opacity-70" />
-            </button>
-          )}
           {messages.length > 0 && (
             <>
               <button
@@ -451,6 +445,20 @@ export default function App() {
               </button>
             </>
           )}
+
+          <button
+            onClick={() => {
+              setUserName("");
+              localStorage.removeItem("priya_user_name");
+              localStorage.removeItem("priya_chat_local_cache");
+              setMessages([]);
+              resetPriyaSession();
+            }}
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+            title="Sign Out / Change Name"
+          >
+            <LogOut size={18} className="opacity-70" />
+          </button>
 
           <button
             onClick={() => setIsMuted(!isMuted)}

@@ -32,7 +32,8 @@ export class LiveSessionManager {
   async start(
     location?: { lat: number; lng: number },
     mode: AssistantMode = "personal",
-    language: AssistantLanguage = "hinglish"
+    language: AssistantLanguage = "hinglish",
+    userName: string = "Guest"
   ) {
     try {
       if (!API_KEY) {
@@ -42,7 +43,7 @@ export class LiveSessionManager {
       this.onStateChange("processing");
       
       const locStr = location ? `\n\nUser current location: Latitude ${location.lat}, Longitude ${location.lng}. Use this for navigation/directions help.` : "";
-      const dynamicInstruction = getSystemInstruction(mode, language) + locStr;
+      const dynamicInstruction = getSystemInstruction(mode, language, userName) + locStr;
       
       // 1. Get Microphone FIRST - Use more robust constraints
       try {

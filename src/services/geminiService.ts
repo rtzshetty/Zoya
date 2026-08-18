@@ -20,7 +20,8 @@ export async function getPriyaResponse(
   history: { sender: "user" | "priya", text: string }[] = [],
   location?: { lat: number; lng: number },
   mode: AssistantMode = "personal",
-  language: AssistantLanguage = "hinglish"
+  language: AssistantLanguage = "hinglish",
+  userName: string = "Guest"
 ): Promise<PriyaResponse> {
   try {
     if (!API_KEY) {
@@ -69,7 +70,7 @@ export async function getPriyaResponse(
       chatSession = ai.chats.create({
         model: "gemini-3.1-flash-lite-preview",
         config: {
-          systemInstruction: getSystemInstruction(mode, language),
+          systemInstruction: getSystemInstruction(mode, language, userName),
           tools,
           toolConfig
         },

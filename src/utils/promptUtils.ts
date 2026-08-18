@@ -1,8 +1,9 @@
 export type AssistantMode = "personal" | "physiological";
 export type AssistantLanguage = "hinglish" | "english";
 
-export function getSystemInstruction(mode: AssistantMode, language: AssistantLanguage): string {
+export function getSystemInstruction(mode: AssistantMode, language: AssistantLanguage, userName: string = "Guest"): string {
   let instruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny.\n\n`;
+  instruction += `You are talking to: ${userName}.\n\n`;
 
   if (mode === "personal") {
     instruction += `[Personal Assistant Mode]\n`;
