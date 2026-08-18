@@ -119,7 +119,18 @@ export async function processCommand(command: string): Promise<{
     if (!website.includes(".")) {
       website += ".com";
     }
-    const targetUrl = `https://www.${website}`;
+    let targetUrl = `https://www.${website}`;
+
+    try {
+      new URL(targetUrl); // Validate URL format
+    } catch (e) {
+      // Fallback to a google search if the URL is completely invalid (e.g. contains unescaped colons or weird characters)
+      return {
+        action: `I couldn't open that directly. Searching Google for ${targetName}...`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(targetName)}`,
+        isBrowserAction: true
+      };
+    }
 
     // Verify if the website is actually working before just blindly opening it
     try {
