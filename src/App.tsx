@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut } from "lucide-react";
 import { getPriyaResponse, getPriyaAudio, resetPriyaSession } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
@@ -9,8 +9,8 @@ import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
-import { saveMessageToSupabase, fetchMessagesFromSupabase, clearMessagesFromSupabase } from "./services/supabaseService";
 import { AssistantMode, AssistantLanguage } from "./utils/promptUtils";
+import AuthScreen from "./components/AuthScreen";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -29,6 +29,9 @@ declare global {
 }
 
 export default function App() {
+  const [authSession, setAuthSession] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
+
   const [appState, setAppState] = useState<AppState>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem("priya_chat_local_cache");
@@ -49,21 +52,14 @@ export default function App() {
   }, [messages]);
 
   useEffect(() => {
-    // Load from Supabase on mount
-    fetchMessagesFromSupabase().then(fetchedMessages => {
-      if (fetchedMessages && fetchedMessages.length > 0) {
-        setMessages(fetchedMessages);
-      } else if (messages.length === 0) {
-        const initialMsg: ChatMessage = { id: "1", sender: "priya", text: "Namaste! I'm Priya. How can I entertain you today?" };
-        setMessages([initialMsg]);
-        saveMessageToSupabase(initialMsg);
-      }
-    });
+    if (messages.length === 0) {
+      const initialMsg: ChatMessage = { id: "1", sender: "priya", text: "Namaste! I'm Priya. How can I entertain you today?" };
+      setMessages([initialMsg]);
+    }
   }, []);
 
   const addMessage = (msg: ChatMessage) => {
     setMessages(prev => [...prev, msg]);
-    saveMessageToSupabase(msg);
   };
 
   const [isMuted, setIsMuted] = useState(false);
@@ -343,6 +339,10 @@ export default function App() {
     setShowTextInput(false);
   };
 
+  if (!authSession && !isGuest) {
+    return <AuthScreen onAuthSuccess={setAuthSession} onGuest={() => setIsGuest(true)} />;
+  }
+
   return (
     <div className="h-[100dvh] w-screen bg-[#050505] text-white flex flex-col items-center justify-between font-sans relative overflow-hidden m-0 p-0">
       {showPermissionModal && (
@@ -414,6 +414,18 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
+          {authSession && (
+            <button
+              onClick={() => {
+                setAuthSession(null);
+                setIsGuest(false);
+              }}
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+              title="Sign Out"
+            >
+              <LogOut size={18} className="opacity-70" />
+            </button>
+          )}
           {messages.length > 0 && (
             <>
               <button
@@ -429,7 +441,6 @@ export default function App() {
                     const initialMsg: ChatMessage = { id: "1", sender: "priya", text: "Namaste! I'm Priya. How can I entertain you today?" };
                     setMessages([initialMsg]);
                     localStorage.removeItem("priya_chat_local_cache");
-                    clearMessagesFromSupabase().then(() => saveMessageToSupabase(initialMsg));
                     resetPriyaSession();
                   }
                 }}

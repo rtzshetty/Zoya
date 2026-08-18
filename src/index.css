@@ -55,3 +55,16 @@ html, body, #root {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Hide Google AI Studio Watermark */
+#google-ai-studio-watermark,
+.google-ai-studio-watermark,
+[class*="aistudio-watermark" i],
+[id*="aistudio-watermark" i],
+[class*="watermark" i],
+[id*="watermark" i] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
