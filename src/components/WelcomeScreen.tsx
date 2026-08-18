@@ -20,9 +20,11 @@ export default function WelcomeScreen({ onNameSubmit }: WelcomeScreenProps) {
       const savedNamesFile = localStorage.getItem('priya_saved_names_file');
       const savedNames: string[] = savedNamesFile ? JSON.parse(savedNamesFile) : [];
       
-      // Check for duplicates
+      // Check for returning user
       if (savedNames.includes(normalizedName)) {
-        setError(`The name "${trimmedName}" has already been used. Please enter a different one.`);
+        // Log them in as a returning user
+        setError('');
+        onNameSubmit(trimmedName);
         return;
       }
       

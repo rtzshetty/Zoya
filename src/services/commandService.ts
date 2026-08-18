@@ -58,6 +58,8 @@ export async function processCommand(command: string): Promise<{
       url = `https://www.amazon.com/s?k=${query}`;
     } else if (site.includes("flipkart")) {
       url = `https://www.flipkart.com/search?q=${query}`;
+    } else if (site.includes("google")) {
+      url = `https://www.google.com/search?q=${query}`;
     } else {
       url = `https://www.google.com/search?q=${query}+site%3A${site.replace(/\s+/g, '')}.com`;
     }

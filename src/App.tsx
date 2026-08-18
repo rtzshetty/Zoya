@@ -233,15 +233,14 @@ export default function App() {
 
       setAppState("idle");
 
-      setTimeout(() => {
-        if (commandResult.url) {
-          if (commandResult.url.startsWith("tel:") || commandResult.url.startsWith("mailto:")) {
-            window.location.href = commandResult.url;
-          } else {
-            window.open(commandResult.url, "_blank");
-          }
+      if (commandResult.url) {
+        if (commandResult.url.startsWith("tel:") || commandResult.url.startsWith("mailto:")) {
+          window.location.href = commandResult.url;
+        } else {
+          // Open immediately without setTimeout to prevent popup blockers
+          window.open(commandResult.url, "_blank");
         }
-      }, 1500);
+      }
     } else {
       try {
         // Run sentiment analysis in parallel with response generation
@@ -339,9 +338,8 @@ export default function App() {
               console.warn("Failed to parse directions URL", e);
             }
           } else {
-            setTimeout(() => {
-              window.open(url, "_blank");
-            }, 1000);
+            // DO NOT use setTimeout here as it will trigger browser popup blockers.
+            window.open(url, "_blank");
           }
         };
 

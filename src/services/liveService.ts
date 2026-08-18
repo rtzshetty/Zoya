@@ -138,11 +138,11 @@ export class LiveSessionManager {
             functionDeclarations: [
               {
                 name: "executeBrowserAction",
-                description: "Open a website or perform a browser action (like YouTube or Spotify).",
+                description: "Open a website, perform a Google search, or perform a browser action (like YouTube or Spotify).",
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
-                    actionType: { type: Type.STRING, description: "Type: 'open', 'youtube', 'spotify', 'whatsapp', 'directions'" },
+                    actionType: { type: Type.STRING, description: "Type: 'open', 'search', 'youtube', 'spotify', 'whatsapp', 'directions'" },
                     query: { type: Type.STRING, description: "Search query, website name, or destination for directions." },
                     target: { type: Type.STRING, description: "Phone number or origin for directions (optional)." }
                   },
@@ -203,10 +203,19 @@ export class LiveSessionManager {
                     const origin = args.target ? encodeURIComponent(args.target) : "";
                     const destination = encodeURIComponent(args.query);
                     url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+                  } else if (args.actionType === "search") {
+                    url = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
                   } else {
                     let website = args.query.replace(/\s+/g, "");
                     if (!website.includes(".")) website += ".com";
                     url = `https://www.${website}`;
+                    
+                    // Fallback to Google Search if URL is totally invalid (e.g. contains spaces, colons incorrectly)
+                    try {
+                      new URL(url);
+                    } catch (e) {
+                      url = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
+                    }
                   }
                   
                   this.onCommand(url);
