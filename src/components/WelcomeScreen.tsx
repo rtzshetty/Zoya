@@ -8,11 +8,30 @@ interface WelcomeScreenProps {
 
 export default function WelcomeScreen({ onNameSubmit }: WelcomeScreenProps) {
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      onNameSubmit(name.trim());
+    const trimmedName = name.trim();
+    if (trimmedName) {
+      const normalizedName = trimmedName.toLowerCase();
+      
+      // Read the 'file' containing all saved names
+      const savedNamesFile = localStorage.getItem('priya_saved_names_file');
+      const savedNames: string[] = savedNamesFile ? JSON.parse(savedNamesFile) : [];
+      
+      // Check for duplicates
+      if (savedNames.includes(normalizedName)) {
+        setError(`The name "${trimmedName}" has already been used. Please enter a different one.`);
+        return;
+      }
+      
+      // Save the new name to the 'file'
+      savedNames.push(normalizedName);
+      localStorage.setItem('priya_saved_names_file', JSON.stringify(savedNames));
+      
+      setError('');
+      onNameSubmit(trimmedName);
     }
   };
 
@@ -43,14 +62,21 @@ export default function WelcomeScreen({ onNameSubmit }: WelcomeScreenProps) {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError('');
+              }}
               placeholder="Enter your name"
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-white/30 outline-none focus:border-violet-500/50 transition-colors text-sm"
+              className={`w-full bg-white/5 border ${error ? 'border-red-500/50' : 'border-white/10'} rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-white/30 outline-none focus:border-violet-500/50 transition-colors text-sm`}
               autoFocus
               required
             />
           </div>
           
+          {error && (
+            <p className="w-full text-red-400 text-xs text-center bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20">{error}</p>
+          )}
+
           <button
             type="submit"
             disabled={!name.trim()}

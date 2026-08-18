@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut } from "lucide-react";
-import { getPriyaResponse, getPriyaAudio, resetPriyaSession } from "./services/geminiService";
+import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut, Activity } from "lucide-react";
+import { getPriyaResponse, getPriyaAudio, resetPriyaSession, analyzeUserMood } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
 import Visualizer from "./components/Visualizer";
@@ -8,6 +8,7 @@ import PermissionModal from "./components/PermissionModal";
 import VideoGenerator from "./components/VideoGenerator";
 import InteractiveMap from "./components/InteractiveMap";
 import WelcomeScreen from "./components/WelcomeScreen";
+import MoodTracker from "./components/MoodTracker";
 import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 import { AssistantMode, AssistantLanguage } from "./utils/promptUtils";
@@ -19,6 +20,12 @@ interface ChatMessage {
   sender: "user" | "priya";
   text: string;
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
+}
+
+interface MoodDataPoint {
+  time: string;
+  score: number;
+  message: string;
 }
 
 declare global {
@@ -52,10 +59,20 @@ export default function App() {
   });
   const messagesRef = useRef(messages);
 
+  const [moodData, setMoodData] = useState<MoodDataPoint[]>(() => {
+    const saved = localStorage.getItem("priya_mood_data");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showMoodTracker, setShowMoodTracker] = useState(false);
+
   useEffect(() => {
     messagesRef.current = messages;
     localStorage.setItem("priya_chat_local_cache", JSON.stringify(messages));
   }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem("priya_mood_data", JSON.stringify(moodData));
+  }, [moodData]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -227,7 +244,22 @@ export default function App() {
       }, 1500);
     } else {
       try {
-        const priyaResponse = await getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined, mode, language, userName);
+        // Run sentiment analysis in parallel with response generation
+        const [priyaResponse, moodScore] = await Promise.all([
+          getPriyaResponse(finalTranscript, messagesRef.current, userLocation || undefined, mode, language, userName),
+          mode === "physiological" ? analyzeUserMood(finalTranscript) : Promise.resolve(null)
+        ]);
+
+        if (moodScore !== null) {
+          const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setMoodData(prev => {
+            const newData = [...prev, { time: timeString, score: moodScore, message: finalTranscript }];
+            // Keep only the last 20 data points
+            if (newData.length > 20) return newData.slice(newData.length - 20);
+            return newData;
+          });
+        }
+
         responseText = priyaResponse.text;
         
         const priyaMsg: ChatMessage = { 
@@ -364,6 +396,13 @@ export default function App() {
         />
       )}
 
+      {showMoodTracker && (
+        <MoodTracker 
+          data={moodData} 
+          onClose={() => setShowMoodTracker(false)} 
+        />
+      )}
+
       <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-violet-900/10 blur-[60px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-pink-900/10 blur-[60px] rounded-full" />
@@ -420,6 +459,16 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
+          {mode === "physiological" && (
+            <button
+              onClick={() => setShowMoodTracker(true)}
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+              title="Emotional Trend Tracker"
+            >
+              <Activity size={18} className="opacity-70 text-violet-300" />
+            </button>
+          )}
+          
           {messages.length > 0 && (
             <>
               <button

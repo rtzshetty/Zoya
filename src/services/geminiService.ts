@@ -105,6 +105,31 @@ export async function getPriyaResponse(
   }
 }
 
+export async function analyzeUserMood(text: string): Promise<number> {
+  try {
+    if (!API_KEY) return 5;
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite-preview",
+      contents: [{
+        parts: [{
+          text: `Analyze the emotional sentiment of the following message from a user. Rate their mood on a scale from 1 to 10, where 1 is extremely sad/angry/stressed, 5 is neutral, and 10 is extremely happy/excited/relaxed. Return ONLY the number, no extra text.\n\nMessage: "${text}"`
+        }]
+      }],
+    });
+    
+    const output = response.text?.trim() || "5";
+    const score = parseInt(output, 10);
+    if (!isNaN(score) && score >= 1 && score <= 10) {
+      return score;
+    }
+    return 5;
+  } catch (error) {
+    console.error("Mood Analysis Error:", error);
+    return 5;
+  }
+}
+
 export async function getPriyaAudio(text: string): Promise<string | null> {
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY! });

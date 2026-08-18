@@ -10,13 +10,78 @@ export async function processCommand(command: string): Promise<{
 }> {
   const lowerCmd = command.toLowerCase().trim();
 
+  // Check if website is working explicitly: "is amazon working?" or "check if amazon is down"
+  const checkSiteMatch = lowerCmd.match(/^(?:check\s+if\s+|is\s+)(.+?)\s+(working|down|up)(?:\s+or\s+not)?\??$/);
+  if (checkSiteMatch) {
+    const site = checkSiteMatch[1].trim().replace(/\s+/g, "");
+    const domain = site.includes(".") ? site : `${site}.com`;
+    const targetUrl = `https://www.${domain}`;
+    try {
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const code = data.status?.http_code;
+        if (code && code >= 200 && code < 400) {
+           return {
+             action: `Yup, ${domain} is up and running properly!`,
+             isBrowserAction: true
+           };
+        } else if (code) {
+           return {
+             action: `Looks like ${domain} is currently down or having issues. It returned an error code.`,
+             isBrowserAction: true
+           };
+        }
+      }
+    } catch(e) {
+      console.warn("Proxy check failed", e);
+    }
+    
+    return {
+      action: `I couldn't verify ${domain} directly, checking online status...`,
+      url: `https://downforeveryoneorjustme.com/${domain}`,
+      isBrowserAction: true
+    };
+  }
+
+  // Media/E-commerce Search: "search [query] on [site]"
+  const searchOnMatch = lowerCmd.match(/^search\s+(?:for\s+)?(.+?)\s+on\s+(.+)$/);
+  if (searchOnMatch) {
+    const query = encodeURIComponent(searchOnMatch[1].trim());
+    const site = searchOnMatch[2].trim();
+    let url = "";
+    if (site.includes("youtube")) {
+      url = `https://www.youtube.com/results?search_query=${query}`;
+    } else if (site.includes("spotify")) {
+      url = `https://open.spotify.com/search/${query}`;
+    } else if (site.includes("amazon")) {
+      url = `https://www.amazon.com/s?k=${query}`;
+    } else if (site.includes("flipkart")) {
+      url = `https://www.flipkart.com/search?q=${query}`;
+    } else {
+      url = `https://www.google.com/search?q=${query}+site%3A${site.replace(/\s+/g, '')}.com`;
+    }
+    return {
+      action: `Searching for ${searchOnMatch[1]} on ${site}.`,
+      url,
+      isBrowserAction: true
+    };
+  }
+
+  // General Search: "search for [query]" or "search [query]"
+  const searchMatch = lowerCmd.match(/^search\s+(?:for\s+)?(.+)$/);
+  if (searchMatch) {
+    const query = encodeURIComponent(searchMatch[1].trim());
+    return {
+      action: `Searching Google for ${searchMatch[1]}...`,
+      url: `https://www.google.com/search?q=${query}`,
+      isBrowserAction: true
+    };
+  }
+
   // General Browsing/App Opening: "Open [app/website name]"
   const openMatch = lowerCmd.match(/^open\s+(.+)$/);
-  if (
-    openMatch &&
-    !lowerCmd.includes("youtube") &&
-    !lowerCmd.includes("spotify")
-  ) {
+  if (openMatch) {
     let targetName = openMatch[1].trim().replace(/\s+app$/, ""); // remove " app" if present
     
     if (Capacitor.isNativePlatform()) {
@@ -54,31 +119,29 @@ export async function processCommand(command: string): Promise<{
     if (!website.includes(".")) {
       website += ".com";
     }
-    return {
-      action: `Opening ${targetName} for you, ugh.`,
-      url: `https://www.${website}`,
-      isBrowserAction: true,
-    };
-  }
+    const targetUrl = `https://www.${website}`;
 
-  // Media Search: "Play [song/video] on YouTube"
-  const ytMatch = lowerCmd.match(/^play\s+(.+?)\s+on\s+youtube$/);
-  if (ytMatch) {
-    const query = encodeURIComponent(ytMatch[1].trim());
-    return {
-      action: `Playing ${ytMatch[1]} on YouTube. Don't judge my music taste.`,
-      url: `https://www.youtube.com/results?search_query=${query}`,
-      isBrowserAction: true,
-    };
-  }
+    // Verify if the website is actually working before just blindly opening it
+    try {
+      const proxyResponse = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+      if (proxyResponse.ok) {
+        const data = await proxyResponse.json();
+        const code = data.status?.http_code;
+        // If it's a 4xx or 5xx error, inform the user it's down instead of opening
+        if (code && code >= 400) {
+          return {
+            action: `I tried to open ${website}, but it seems to be down or unreachable right now.`,
+            isBrowserAction: true
+          };
+        }
+      }
+    } catch (e) {
+      // If the proxy fails, just proceed to open it normally
+    }
 
-  // Media Search: "Search [query] on Spotify"
-  const spotifyMatch = lowerCmd.match(/^search\s+(.+?)\s+on\s+spotify$/);
-  if (spotifyMatch) {
-    const query = encodeURIComponent(spotifyMatch[1].trim());
     return {
-      action: `Searching ${spotifyMatch[1]} on Spotify. Hope it's a banger.`,
-      url: `https://open.spotify.com/search/${query}`,
+      action: `Opening ${targetName} for you...`,
+      url: targetUrl,
       isBrowserAction: true,
     };
   }
