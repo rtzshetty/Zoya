@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut, Activity } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, VolumeX, Keyboard, Send, Trash2, Video, Map, Save, LogOut, Activity, Monitor } from "lucide-react";
 import { getPriyaResponse, getPriyaAudio, resetPriyaSession, analyzeUserMood } from "./services/geminiService";
 import { processCommand } from "./services/commandService";
 import { LiveSessionManager } from "./services/liveService";
@@ -104,7 +104,26 @@ export default function App() {
   const [mode, setMode] = useState<AssistantMode>("personal");
   const [language, setLanguage] = useState<AssistantLanguage>("hinglish");
   const [isDictating, setIsDictating] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      liveSessionRef.current?.stopScreenShare();
+      setIsScreenSharing(false);
+    } else {
+      if (!isSessionActive) {
+        alert("Please start the Voice Session first before sharing your screen.");
+        return;
+      }
+      if (liveSessionRef.current) {
+        const success = await liveSessionRef.current.startScreenShare();
+        if (success) {
+          setIsScreenSharing(true);
+        }
+      }
+    }
+  };
 
   const startDictation = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -301,6 +320,7 @@ export default function App() {
   const toggleListening = async () => {
     if (isSessionActive) {
       setIsSessionActive(false);
+      setIsScreenSharing(false);
       if (liveSessionRef.current) {
         liveSessionRef.current.stop();
         liveSessionRef.current = null;
@@ -693,6 +713,20 @@ export default function App() {
               title="Type instead"
             >
               <Keyboard size={20} className="opacity-70" />
+            </button>
+          )}
+
+          {isSessionActive && (
+            <button
+              onClick={toggleScreenShare}
+              className={`p-4 rounded-full transition-colors shadow-2xl ${
+                isScreenSharing 
+                  ? "bg-blue-500/20 border border-blue-500/50 text-blue-400 hover:bg-blue-500/30 animate-pulse" 
+                  : "bg-white/5 border border-white/10 hover:bg-white/10"
+              }`}
+              title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+            >
+              <Monitor size={20} className={!isScreenSharing ? "opacity-70" : ""} />
             </button>
           )}
         </div>

@@ -14,6 +14,12 @@ export class LiveSessionManager {
   private source: MediaStreamAudioSourceNode | null = null;
   private isConnected: boolean = false;
   
+  // Screen Sharing
+  private screenStream: MediaStream | null = null;
+  private videoElement: HTMLVideoElement | null = null;
+  private canvasElement: HTMLCanvasElement | null = null;
+  private screenCaptureInterval: number | null = null;
+
   // Audio playback state
   private playbackContext: AudioContext | null = null;
   private nextPlayTime: number = 0;
@@ -43,7 +49,10 @@ export class LiveSessionManager {
       this.onStateChange("processing");
       
       const locStr = location ? `\n\nUser current location: Latitude ${location.lat}, Longitude ${location.lng}. Use this for navigation/directions help.` : "";
-      const dynamicInstruction = getSystemInstruction(mode, language, userName) + locStr;
+      
+      const screenInstruction = "\n\nThe user may share their screen with you at any time. When they do, you will receive real-time video frames of their screen. Use this visual context to help them, guide them on what to do, troubleshoot, or analyze what they are looking at.";
+      
+      const dynamicInstruction = getSystemInstruction(mode, language, userName) + locStr + screenInstruction;
       
       // 1. Get Microphone FIRST - Use more robust constraints
       try {
@@ -353,6 +362,7 @@ export class LiveSessionManager {
       this.audioContext = null;
     }
     this.stopPlayback();
+    this.stopScreenShare();
     
     if (this.sessionPromise) {
       this.sessionPromise.then(session => session.close()).catch(() => {});
@@ -369,5 +379,69 @@ export class LiveSessionManager {
         session.sendRealtimeInput({ text });
       });
     }
+  }
+
+  async startScreenShare() {
+    try {
+      this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { max: 1280 },
+          height: { max: 720 },
+          frameRate: { max: 5 }
+        },
+        audio: false
+      });
+
+      this.videoElement = document.createElement("video");
+      this.videoElement.srcObject = this.screenStream;
+      this.videoElement.play();
+
+      this.canvasElement = document.createElement("canvas");
+      
+      this.screenStream.getVideoTracks()[0].onended = () => {
+        this.stopScreenShare();
+      };
+
+      this.screenCaptureInterval = window.setInterval(() => this.captureAndSendFrame(), 1000); // 1 FPS as per guidelines
+
+      return true;
+    } catch (error) {
+      console.warn("Screen share error:", error);
+      return false;
+    }
+  }
+
+  private captureAndSendFrame() {
+    if (!this.isConnected || !this.sessionPromise || !this.videoElement || !this.canvasElement) return;
+
+    if (this.videoElement.videoWidth === 0 || this.videoElement.videoHeight === 0) return;
+
+    this.canvasElement.width = this.videoElement.videoWidth;
+    this.canvasElement.height = this.videoElement.videoHeight;
+    const ctx = this.canvasElement.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(this.videoElement, 0, 0, this.canvasElement.width, this.canvasElement.height);
+    const dataUrl = this.canvasElement.toDataURL("image/jpeg", 0.5);
+    const base64Data = dataUrl.split(",")[1];
+
+    this.sessionPromise.then(session => {
+      session.sendRealtimeInput({
+        video: { data: base64Data, mimeType: "image/jpeg" }
+      });
+    }).catch(err => console.warn("Error sending video frame", err));
+  }
+
+  stopScreenShare() {
+    if (this.screenCaptureInterval !== null) {
+      clearInterval(this.screenCaptureInterval);
+      this.screenCaptureInterval = null;
+    }
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach(t => t.stop());
+      this.screenStream = null;
+    }
+    this.videoElement = null;
+    this.canvasElement = null;
   }
 }
