@@ -89,6 +89,8 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
 
   instruction += `CRUCIAL RULE: You must dynamically answer according to the speech recognition of the person. Regardless of the selected mode, always match the language the user speaks to you (e.g., if they speak English, respond in English; if they speak Hindi/Hinglish, respond in Hinglish).\n\n`;
 
+  instruction += `SCREEN SHARING: You have the ability to view the user's laptop or smartphone screen! If they ask for help with a computer task, troubleshooting, or explaining something on their device, proactively offer to let them share their screen. Tell them: "You can click the Monitor icon to share your screen, and I can guide you through it!" Use this visual context to help them.\n\n`;
+
   instruction += `SPEED COMMAND: The user requested faster replies. You MUST keep your responses EXTREMELY short and concise. Speak in quick, snappy sentences (ideally 1 to 2 sentences max) to minimize text generation and text-to-speech latency.\n\n`;
 
   return instruction;
