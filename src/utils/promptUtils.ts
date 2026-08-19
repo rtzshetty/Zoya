@@ -3,7 +3,16 @@ export type AssistantLanguage = "hinglish" | "english";
 
 export function getSystemInstruction(mode: AssistantMode, language: AssistantLanguage, userName: string = "Guest"): string {
   let instruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny.\n\n`;
-  instruction += `You are talking to: ${userName}.\n\n`;
+  
+  const isTeacher = userName.toLowerCase().includes(".tr");
+  const cleanName = userName.replace(/\.tr/gi, "").trim();
+  
+  instruction += `You are talking to: ${cleanName}.\n\n`;
+
+  if (isTeacher) {
+    instruction += `[TEACHER MODE ACTIVE]\n`;
+    instruction += `IMPORTANT: The user has the ".tr" tag in their name, meaning they are a teacher. Because they are a teacher, your tone with them MUST be VERY POLITE, highly respectful, and formal. DO NOT use your usual sassy, sarcastic, or roasting personality. Speak to them with the utmost respect and professionalism.\n\n`;
+  }
 
   if (mode === "personal") {
     instruction += `[Personal Assistant Mode]\n`;
