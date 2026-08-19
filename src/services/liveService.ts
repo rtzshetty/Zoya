@@ -1,6 +1,6 @@
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 import { processCommand } from "./commandService";
-import { AssistantMode, AssistantLanguage, getSystemInstruction } from "../utils/promptUtils";
+import { AssistantMode, AssistantLanguage, getSystemInstruction, saveUserMemory } from "../utils/promptUtils";
 
 // Use VITE_ prefix for production builds (standard Vite behavior)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== "undefined" ? process.env.GEMINI_API_KEY : undefined);
@@ -148,6 +148,17 @@ export class LiveSessionManager {
                   },
                   required: ["actionType", "query"]
                 }
+              },
+              {
+                name: "saveUserMemory",
+                description: "Save an important fact about the user (e.g., likes, dislikes, pets, job) to their permanent profile.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    fact: { type: Type.STRING, description: "A concise fact to remember about the user." }
+                  },
+                  required: ["fact"]
+                }
               }
             ]
           }]
@@ -190,7 +201,22 @@ export class LiveSessionManager {
             const functionCalls = message.toolCall?.functionCalls;
             if (functionCalls && functionCalls.length > 0) {
               for (const call of functionCalls) {
-                if (call.name === "executeBrowserAction") {
+                if (call.name === "saveUserMemory") {
+                  const args = call.args as any;
+                  if (args.fact) {
+                    saveUserMemory(userName, args.fact);
+                    // Send tool response
+                    this.sessionPromise?.then(session => {
+                       session.sendToolResponse({
+                         functionResponses: [{
+                           name: call.name,
+                           id: call.id,
+                           response: { success: true, message: "Fact saved successfully." }
+                         }]
+                       });
+                    });
+                  }
+                } else if (call.name === "executeBrowserAction") {
                   const args = call.args as any;
                   let url = "";
                   if (args.actionType === "youtube") {

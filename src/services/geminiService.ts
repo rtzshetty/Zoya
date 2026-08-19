@@ -1,5 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { AssistantMode, AssistantLanguage, getSystemInstruction } from "../utils/promptUtils";
+import { GoogleGenAI, Type } from "@google/genai";
+import { AssistantMode, AssistantLanguage, getSystemInstruction, saveUserMemory } from "../utils/promptUtils";
 
 let chatSession: any = null;
 
@@ -57,7 +57,25 @@ export async function getPriyaResponse(
       }
 
       // If we have location, prioritize googleMaps tool as per user request
-      const tools = location ? [{ googleMaps: {} }] : [{ googleSearch: {} }];
+      const tools: any[] = location ? [{ googleMaps: {} }] : [{ googleSearch: {} }];
+      
+      // Add memory tool
+      tools.push({
+        functionDeclarations: [
+          {
+            name: "saveUserMemory",
+            description: "Save an important fact about the user (e.g., likes, dislikes, pets, job) to their permanent profile.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                fact: { type: Type.STRING, description: "A concise fact to remember about the user." }
+              },
+              required: ["fact"]
+            }
+          }
+        ]
+      });
+
       const toolConfig = location ? {
         retrievalConfig: {
           latLng: {
@@ -68,7 +86,7 @@ export async function getPriyaResponse(
       } : undefined;
 
       chatSession = ai.chats.create({
-        model: "gemini-3.1-flash-lite-preview",
+        model: "gemini-3.1-flash-preview", // upgraded from flash-lite to flash for better tool calling
         config: {
           systemInstruction: getSystemInstruction(mode, language, userName),
           tools,
@@ -78,7 +96,30 @@ export async function getPriyaResponse(
       });
     }
 
-    const response = await chatSession.sendMessage({ message: prompt });
+    let response = await chatSession.sendMessage({ message: prompt });
+    
+    // Handle function calls manually if they exist
+    if (response.functionCalls && response.functionCalls.length > 0) {
+      const functionResponses: any[] = [];
+      for (const call of response.functionCalls) {
+        if (call.name === "saveUserMemory") {
+          const args = call.args as any;
+          if (args.fact) {
+            saveUserMemory(userName, args.fact);
+            functionResponses.push({
+               functionResponse: {
+                 name: call.name,
+                 response: { success: true, message: "Fact saved successfully." }
+               }
+            });
+          }
+        }
+      }
+      
+      if (functionResponses.length > 0) {
+        response = await chatSession.sendMessage(functionResponses);
+      }
+    }
     
     const sources: { title: string; url: string; type?: "web" | "maps" }[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;

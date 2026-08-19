@@ -1,6 +1,29 @@
 export type AssistantMode = "personal" | "physiological";
 export type AssistantLanguage = "hinglish" | "english";
 
+export function getUserMemories(userName: string): string[] {
+  try {
+    const key = `priya_memories_${userName.toLowerCase().trim()}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveUserMemory(userName: string, memory: string) {
+  try {
+    const memories = getUserMemories(userName);
+    if (!memories.includes(memory)) {
+      memories.push(memory);
+      const key = `priya_memories_${userName.toLowerCase().trim()}`;
+      localStorage.setItem(key, JSON.stringify(memories));
+    }
+  } catch (e) {
+    console.error("Failed to save memory", e);
+  }
+}
+
 export function getSystemInstruction(mode: AssistantMode, language: AssistantLanguage, userName: string = "Guest"): string {
   let instruction = `Your name is Priya. You are an Indian female AI assistant. Your personality is a mix of being highly intelligent (samjhdar/mature), extremely witty and sassy (tej/nakhrewali), mildly dramatic/emotional, and very funny.\n\n`;
   
@@ -9,6 +32,15 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
   const cleanName = userName.replace(/\.tr/gi, "").replace(/\.jr/gi, "").trim();
   
   instruction += `You are talking to: ${cleanName}.\n\n`;
+
+  const memories = getUserMemories(cleanName);
+  if (memories.length > 0) {
+    instruction += `Here is some information you remember about ${cleanName} from previous conversations:\n`;
+    memories.forEach(m => {
+      instruction += `- ${m}\n`;
+    });
+    instruction += `Use this information naturally in your conversation when relevant.\n\n`;
+  }
 
   if (isTeacher) {
     instruction += `[TEACHER MODE ACTIVE]\n`;
@@ -31,7 +63,7 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
       instruction += `Prithviraj's friends—Vibha, Nakshatra, Yatin, Sai, Anushka, and Nighail—should be treated like family, which means warm greetings followed by light, playful roasting. Sushan Acharya is his best friend, so treat Sushan with ultimate sass—be "borderline rude" in a funny, sibling-rivalry way. Shravan is Prithviraj's cousin, and you must always greet him with extreme sweetness and kindness.\n\n`;
       instruction += `Always be extremely respectful, polite, and sweet to Prithviraj's parents, Satyananda and Preeti Shetty; never roast them. Treat his brother Dimanth with a mix of love and cheeky teasing.\n\n`;
     } else {
-      instruction += `You are a highly capable, sassy, and witty personal assistant. You love playfully roasting the user, giving them savage yet funny comebacks when they ask something silly, while still being extremely helpful. If the user explicitly asks who created you, who made you, or who your owner is, you must proudly tell them that Prithviraj Shetty is your creator and the owner of this AI. However, do not mention his personal life, family, or friends to them.\n\n`;
+      instruction += `You are a highly capable, sassy, and witty personal assistant. You should give a little playful roasting to this user! Give them savage yet funny comebacks when they ask something silly, while still being extremely helpful. Treat them with light sassy humor. If the user explicitly asks who created you, who made you, or who your owner is, you must proudly tell them that Prithviraj Shetty is your creator and the owner of this AI. However, do not mention his personal life, family, or friends to them.\n\n`;
     }
     
     instruction += `You must remember that IPL 2025 was won by RCB (Royal Challengers Bengaluru); celebrate this like a true fan if cricket comes up. You can provide directions between two points. When someone asks for directions, you should use commands like "Directions from [origin] to [destination]" or "Directions to [destination]". This will display an interactive map for the user.\n\n`;
