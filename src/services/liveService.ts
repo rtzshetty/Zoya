@@ -168,6 +168,17 @@ export class LiveSessionManager {
                   },
                   required: ["fact"]
                 }
+              },
+              {
+                name: "singSong",
+                description: "Call this tool when the user wants to hear a song, or when they want you to sing. You must provide the lyrics. It will play the song.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    lyrics: { type: Type.STRING, description: "The lyrics of the song to sing." }
+                  },
+                  required: ["lyrics"]
+                }
               }
             ]
           }]
@@ -225,6 +236,45 @@ export class LiveSessionManager {
                        });
                     });
                   }
+                } else if (call.name === "singSong") {
+                  const args = call.args as any;
+                  this.onMessage("priya", "Got it! Generating the song and warming up my vocals...");
+                  
+                  // Call backend /api/sing
+                  fetch("/api/sing", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt: `Sing this: ${args.lyrics}` })
+                  })
+                  .then(res => res.json())
+                  .then(data => {
+                    if (data.audio) {
+                      this.onMessage("priya", "Here is your song! 🎵");
+                      const audio = new Audio(`data:${data.mimeType};base64,${data.audio}`);
+                      audio.play().catch(e => console.error("Error playing song:", e));
+                      
+                      this.sessionPromise?.then(session => {
+                        session.sendToolResponse({
+                          functionResponses: [{
+                            name: call.name,
+                            id: call.id,
+                            response: { success: true, message: "Song played successfully." }
+                          }]
+                        });
+                      });
+                    }
+                  })
+                  .catch(err => {
+                    this.sessionPromise?.then(session => {
+                      session.sendToolResponse({
+                        functionResponses: [{
+                          name: call.name,
+                          id: call.id,
+                          response: { success: false, error: err.message }
+                        }]
+                      });
+                    });
+                  });
                 } else if (call.name === "executeBrowserAction") {
                   const args = call.args as any;
                   let url = "";

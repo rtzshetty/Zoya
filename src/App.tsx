@@ -289,10 +289,23 @@ export default function App() {
         addMessage(priyaMsg);
         
         if (!isMuted) {
-          setAppState("speaking");
-          const audioBase64 = await getPriyaAudio(responseText);
-          if (audioBase64) {
-            await playPCM(audioBase64);
+          if (priyaResponse.songAudio && priyaResponse.songMimeType) {
+            setAppState("speaking");
+            const audioObj = new Audio(`data:${priyaResponse.songMimeType};base64,${priyaResponse.songAudio}`);
+            await new Promise((resolve) => {
+              audioObj.onended = resolve;
+              audioObj.onerror = resolve;
+              audioObj.play().catch(e => {
+                console.error("Error playing song:", e);
+                resolve(null);
+              });
+            });
+          } else {
+            setAppState("speaking");
+            const audioBase64 = await getPriyaAudio(responseText);
+            if (audioBase64) {
+              await playPCM(audioBase64);
+            }
           }
         }
       } catch (err: any) {

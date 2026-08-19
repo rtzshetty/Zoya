@@ -10,6 +10,8 @@ export function resetPriyaSession() {
 export interface PriyaResponse {
   text: string;
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
+  songAudio?: string;
+  songMimeType?: string;
 }
 
 // Use VITE_ prefix for production builds (standard Vite behavior)
@@ -64,25 +66,27 @@ export async function getPriyaResponse(
         functionDeclarations: [
           {
             name: "saveUserMemory",
-            description: "Save an important fact about the user (e.g., likes, dislikes, pets, job) to their permanent profile.",
+            description: "Save an important fact about the user.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                fact: { type: Type.STRING, description: "A concise fact to remember about the user." }
-              },
+              properties: { fact: { type: Type.STRING } },
               required: ["fact"]
+            }
+          },
+          {
+            name: "singSong",
+            description: "Call this tool when the user wants to hear a song, or when they want you to sing. You must provide the lyrics. It will play the song.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: { lyrics: { type: Type.STRING, description: "The lyrics of the song to sing." } },
+              required: ["lyrics"]
             }
           }
         ]
       });
 
       const toolConfig = location ? {
-        retrievalConfig: {
-          latLng: {
-            latitude: location.lat,
-            longitude: location.lng
-          }
-        }
+        retrievalConfig: { latLng: { latitude: location.lat, longitude: location.lng } }
       } : undefined;
 
       chatSession = ai.chats.create({
@@ -99,6 +103,9 @@ export async function getPriyaResponse(
     let response = await chatSession.sendMessage({ message: prompt });
     
     // Handle function calls manually if they exist
+    let returnAudio: string | undefined;
+    let returnMime: string | undefined;
+
     if (response.functionCalls && response.functionCalls.length > 0) {
       const functionResponses: any[] = [];
       for (const call of response.functionCalls) {
@@ -107,11 +114,31 @@ export async function getPriyaResponse(
           if (args.fact) {
             saveUserMemory(userName, args.fact);
             functionResponses.push({
-               functionResponse: {
-                 name: call.name,
-                 response: { success: true, message: "Fact saved successfully." }
-               }
+               functionResponse: { name: call.name, response: { success: true, message: "Fact saved successfully." } }
             });
+          }
+        } else if (call.name === "singSong") {
+          const args = call.args as any;
+          if (args.lyrics) {
+            try {
+              const res = await fetch("/api/sing", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: `Sing this: ${args.lyrics}` })
+              });
+              const data = await res.json();
+              if (data.audio) {
+                returnAudio = data.audio;
+                returnMime = data.mimeType;
+                functionResponses.push({
+                   functionResponse: { name: call.name, response: { success: true, message: "Song played successfully." } }
+                });
+              }
+            } catch (e: any) {
+              functionResponses.push({
+                 functionResponse: { name: call.name, response: { success: false, error: e.message } }
+              });
+            }
           }
         }
       }
@@ -135,8 +162,10 @@ export async function getPriyaResponse(
     }
 
     return {
-      text: response.text || "Ugh, fine. I have nothing to say.",
-      sources: sources.length > 0 ? sources : undefined
+      text: response.text || "Here is your song! 🎵",
+      sources: sources.length > 0 ? sources : undefined,
+      songAudio: returnAudio,
+      songMimeType: returnMime
     };
   } catch (error) {
     console.error("Gemini Error:", error);
