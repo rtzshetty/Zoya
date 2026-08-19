@@ -131,7 +131,7 @@ export class LiveSessionManager {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
           systemInstruction: dynamicInstruction,
           tools: [{

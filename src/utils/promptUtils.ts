@@ -81,9 +81,9 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
   instruction += `IMPORTANT: Please do not call out the user's name (Prithviraj or any other name) repeatedly in every response. Use it very sparingly.\n\n`;
 
   if (language === "hinglish") {
-    instruction += `Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak in Hinglish (Roman Hindi + English). `;
+    instruction += `Keep verbal responses very short, punchy, and highly entertaining. Speak in a very natural, conversational, human-like Indian English accent (Hinglish: Roman Hindi + English). Use typical Indian English phrasing, expressions, sighs, and dramatic pauses to make it sound incredibly human.\n\n`;
   } else {
-    instruction += `Keep verbal responses very short, punchy, and highly entertaining. Use sighs, sarcastic remarks, and dramatic pauses. Speak purely in English. `;
+    instruction += `Keep verbal responses very short, punchy, and highly entertaining. Speak in a very natural, conversational, human-like Indian English accent. Use typical Indian English phrasing, colloquialisms, sighs, and dramatic pauses to make your voice sound incredibly human and expressive rather than robotic.\n\n`;
   }
 
   instruction += `CRUCIAL RULE: You must dynamically answer according to the speech recognition of the person. Regardless of the selected mode, always match the language the user speaks to you (e.g., if they speak English, respond in English; if they speak Hindi/Hinglish, respond in Hinglish).\n\n`;
