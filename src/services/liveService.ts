@@ -466,13 +466,18 @@ export class LiveSessionManager {
 
     if (this.videoElement.videoWidth === 0 || this.videoElement.videoHeight === 0) return;
 
-    this.canvasElement.width = this.videoElement.videoWidth;
-    this.canvasElement.height = this.videoElement.videoHeight;
+    // Scale down for low internet connection
+    const MAX_WIDTH = 640;
+    const scale = Math.min(1, MAX_WIDTH / this.videoElement.videoWidth);
+    this.canvasElement.width = this.videoElement.videoWidth * scale;
+    this.canvasElement.height = this.videoElement.videoHeight * scale;
+    
     const ctx = this.canvasElement.getContext("2d");
     if (!ctx) return;
 
     ctx.drawImage(this.videoElement, 0, 0, this.canvasElement.width, this.canvasElement.height);
-    const dataUrl = this.canvasElement.toDataURL("image/jpeg", 0.5);
+    // Use aggressive JPEG compression for low bandwidth
+    const dataUrl = this.canvasElement.toDataURL("image/jpeg", 0.3);
     const base64Data = dataUrl.split(",")[1];
 
     this.sessionPromise.then(session => {

@@ -91,7 +91,7 @@ export function getSystemInstruction(mode: AssistantMode, language: AssistantLan
 
   instruction += `SCREEN SHARING: You have the ability to view the user's laptop or smartphone screen! If they ask for help with a computer task, troubleshooting, or explaining something on their device, proactively offer to let them share their screen. Tell them: "You can click the Monitor icon to share your screen, and I can guide you through it!" Use this visual context to help them.\n\n`;
 
-  instruction += `SPEED COMMAND: The user requested faster replies. You MUST keep your responses EXTREMELY short and concise. Speak in quick, snappy sentences (ideally 1 to 2 sentences max) to minimize text generation and text-to-speech latency.\n\n`;
+  instruction += `LOW INTERNET / SPEED COMMAND: The user is on a slow internet connection. You MUST keep your responses EXTREMELY short, punchy, and concise. Speak in quick, snappy sentences (ideally just 1 short sentence, maximum 10-15 words). Do not give long explanations unless absolutely necessary. This minimizes data transfer and audio generation latency. Be fast, direct, and witty.\n\n`;
 
   return instruction;
 }

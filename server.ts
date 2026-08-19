@@ -4,6 +4,50 @@ import { createServer as createViteServer } from "vite";
 import { WebSocketServer } from "ws";
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+class AsyncQueue {
+  private concurrency: number;
+  private running: number = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(concurrency: number) {
+    this.concurrency = concurrency;
+  }
+
+  async enqueue<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const res = await task();
+          resolve(res);
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.running--;
+          this.next();
+        }
+      });
+      this.next();
+    });
+  }
+
+  private next() {
+    if (this.running < this.concurrency && this.queue.length > 0) {
+      this.running++;
+      const task = this.queue.shift();
+      if (task) task();
+    }
+  }
+}
+
+const apiQueue = new AsyncQueue(10); // Distribute load evenly, limit concurrent requests
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
@@ -19,75 +63,77 @@ async function startServer() {
 
   app.post("/api/chat", async (req, res) => {
     try {
-      const { prompt, history, location, systemInstruction } = req.body;
-      
-      let formattedHistory: any[] = [];
-      let currentRole = "";
-      let currentText = "";
+      await apiQueue.enqueue(async () => {
+        const { prompt, history, location, systemInstruction } = req.body;
+        
+        let formattedHistory: any[] = [];
+        let currentRole = "";
+        let currentText = "";
 
-      for (const msg of history || []) {
-        const role = msg.sender === "user" ? "user" : "model";
-        if (role === currentRole) {
-          currentText += "\n" + msg.text;
-        } else {
-          if (currentRole !== "") {
-            formattedHistory.push({ role: currentRole, parts: [{ text: currentText }] });
-          }
-          currentRole = role;
-          currentText = msg.text;
-        }
-      }
-      if (currentRole !== "") {
-        formattedHistory.push({ role: currentRole, parts: [{ text: currentText }] });
-      }
-
-      if (formattedHistory.length > 0 && formattedHistory[0].role !== "user") {
-        formattedHistory.shift();
-      }
-
-      const tools: any[] = location ? [{ googleMaps: {} }] : [{ googleSearch: {} }];
-      
-      tools.push({
-        functionDeclarations: [
-          {
-            name: "saveUserMemory",
-            description: "Save an important fact about the user (e.g., likes, dislikes, pets, job) to their permanent profile.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: { fact: { type: Type.STRING, description: "A concise fact to remember about the user." } },
-              required: ["fact"]
+        for (const msg of history || []) {
+          const role = msg.sender === "user" ? "user" : "model";
+          if (role === currentRole) {
+            currentText += "\n" + msg.text;
+          } else {
+            if (currentRole !== "") {
+              formattedHistory.push({ role: currentRole, parts: [{ text: currentText }] });
             }
+            currentRole = role;
+            currentText = msg.text;
           }
-        ]
-      });
+        }
+        if (currentRole !== "") {
+          formattedHistory.push({ role: currentRole, parts: [{ text: currentText }] });
+        }
 
-      const toolConfig = location ? {
-        retrievalConfig: { latLng: { latitude: location.lat, longitude: location.lng } }
-      } : undefined;
+        if (formattedHistory.length > 0 && formattedHistory[0].role !== "user") {
+          formattedHistory.shift();
+        }
 
-      const chatSession = ai.chats.create({
-        model: "gemini-3.1-flash-preview",
-        config: { systemInstruction, tools, toolConfig },
-        history: formattedHistory,
-      });
-
-      const response = await chatSession.sendMessage({ message: prompt });
-      
-      let functionCalls = response.functionCalls || [];
-      const sources: { title: string; url: string; type?: "web" | "maps" }[] = [];
-      
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        chunks.forEach((chunk: any) => {
-          if (chunk.web) sources.push({ title: chunk.web.title, url: chunk.web.uri, type: "web" });
-          if (chunk.maps) sources.push({ title: chunk.maps.title || "View on Maps", url: chunk.maps.uri, type: "maps" });
+        const tools: any[] = location ? [{ googleMaps: {} }] : [{ googleSearch: {} }];
+        
+        tools.push({
+          functionDeclarations: [
+            {
+              name: "saveUserMemory",
+              description: "Save an important fact about the user (e.g., likes, dislikes, pets, job) to their permanent profile.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { fact: { type: Type.STRING, description: "A concise fact to remember about the user." } },
+                required: ["fact"]
+              }
+            }
+          ]
         });
-      }
 
-      res.json({
-        text: response.text || "",
-        functionCalls: functionCalls.map(c => ({ name: c.name, args: c.args, id: c.id })),
-        sources: sources.length > 0 ? sources : undefined
+        const toolConfig = location ? {
+          retrievalConfig: { latLng: { latitude: location.lat, longitude: location.lng } }
+        } : undefined;
+
+        const chatSession = ai.chats.create({
+          model: "gemini-3.1-flash-preview",
+          config: { systemInstruction, tools, toolConfig },
+          history: formattedHistory,
+        });
+
+        const response = await chatSession.sendMessage({ message: prompt });
+        
+        let functionCalls = response.functionCalls || [];
+        const sources: { title: string; url: string; type?: "web" | "maps" }[] = [];
+        
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks) {
+          chunks.forEach((chunk: any) => {
+            if (chunk.web) sources.push({ title: chunk.web.title, url: chunk.web.uri, type: "web" });
+            if (chunk.maps) sources.push({ title: chunk.maps.title || "View on Maps", url: chunk.maps.uri, type: "maps" });
+          });
+        }
+
+        res.json({
+          text: response.text || "",
+          functionCalls: functionCalls.map(c => ({ name: c.name, args: c.args, id: c.id })),
+          sources: sources.length > 0 ? sources : undefined
+        });
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -96,17 +142,19 @@ async function startServer() {
 
   app.post("/api/audio", async (req, res) => {
     try {
-      const { text } = req.body;
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-tts-preview",
-        contents: [{ parts: [{ text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-        },
+      await apiQueue.enqueue(async () => {
+        const { text } = req.body;
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-tts-preview",
+          contents: [{ parts: [{ text }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          },
+        });
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        res.json({ audio: base64Audio });
       });
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      res.json({ audio: base64Audio });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -114,28 +162,30 @@ async function startServer() {
 
   app.post("/api/sing", async (req, res) => {
     try {
-      const { prompt } = req.body;
-      const response = await ai.models.generateContentStream({
-        model: "lyria-3-clip-preview",
-        contents: prompt,
-      });
+      await apiQueue.enqueue(async () => {
+        const { prompt } = req.body;
+        const response = await ai.models.generateContentStream({
+          model: "lyria-3-clip-preview",
+          contents: prompt,
+        });
 
-      let audioBase64 = "";
-      let mimeType = "audio/wav";
+        let audioBase64 = "";
+        let mimeType = "audio/wav";
 
-      for await (const chunk of response) {
-        const parts = chunk.candidates?.[0]?.content?.parts;
-        if (!parts) continue;
-        for (const part of parts) {
-          if (part.inlineData?.data) {
-            if (!audioBase64 && part.inlineData.mimeType) {
-              mimeType = part.inlineData.mimeType;
+        for await (const chunk of response) {
+          const parts = chunk.candidates?.[0]?.content?.parts;
+          if (!parts) continue;
+          for (const part of parts) {
+            if (part.inlineData?.data) {
+              if (!audioBase64 && part.inlineData.mimeType) {
+                mimeType = part.inlineData.mimeType;
+              }
+              audioBase64 += part.inlineData.data;
             }
-            audioBase64 += part.inlineData.data;
           }
         }
-      }
-      res.json({ audio: audioBase64, mimeType });
+        res.json({ audio: audioBase64, mimeType });
+      });
     } catch (e: any) {
       console.error(e);
       res.status(500).json({ error: e.message });
@@ -172,7 +222,18 @@ async function startServer() {
     }
   });
 
+  let activeConnections = 0;
+  const MAX_CONNECTIONS = 20;
+
   wss.on("connection", async (clientWs, request) => {
+    if (activeConnections >= MAX_CONNECTIONS) {
+      clientWs.send(JSON.stringify({ error: "Server is currently at maximum capacity. Please try again later." }));
+      clientWs.close();
+      return;
+    }
+    
+    activeConnections++;
+    
     try {
       const url = new URL(request.url!, `http://${request.headers.host}`);
       let systemInstruction = url.searchParams.get("systemInstruction") || "";
@@ -264,9 +325,11 @@ async function startServer() {
       });
 
       clientWs.on("close", () => {
+        activeConnections--;
         session.close();
       });
     } catch (err: any) {
+      activeConnections--;
       clientWs.send(JSON.stringify({ error: err.message }));
       clientWs.close();
     }
