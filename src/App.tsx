@@ -452,7 +452,7 @@ export default function App() {
       <header className="absolute top-0 left-0 w-full flex justify-between items-center z-20 shrink-0 px-6 py-4 md:px-12 md:py-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center font-bold text-sm">
-            Z
+            P
           </div>
           <h1 className="text-xl font-serif font-medium tracking-wide opacity-90 hidden sm:block">Priya</h1>
           

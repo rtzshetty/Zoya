@@ -240,38 +240,34 @@ export class LiveSessionManager {
                   const args = call.args as any;
                   this.onMessage("priya", "Got it! Generating the song and warming up my vocals...");
                   
-                  // Call backend /api/sing
-                  fetch("/api/sing", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ prompt: `Sing this: ${args.lyrics}` })
-                  })
-                  .then(res => res.json())
-                  .then(data => {
-                    if (data.audio) {
-                      this.onMessage("priya", "Here is your song! 🎵");
-                      const audio = new Audio(`data:${data.mimeType};base64,${data.audio}`);
-                      audio.play().catch(e => console.error("Error playing song:", e));
-                      
+                  import("./geminiService").then(({ generateSong }) => {
+                    generateSong(`Sing this: ${args.lyrics}`)
+                    .then(data => {
+                      if (data.audio) {
+                        this.onMessage("priya", "Here is your song! 🎵");
+                        const audio = new Audio(`data:${data.mimeType};base64,${data.audio}`);
+                        audio.play().catch(e => console.error("Error playing song:", e));
+                        
+                        this.sessionPromise?.then(session => {
+                          session.sendToolResponse({
+                            functionResponses: [{
+                              name: call.name,
+                              id: call.id,
+                              response: { success: true, message: "Song played successfully." }
+                            }]
+                          });
+                        });
+                      }
+                    })
+                    .catch(err => {
                       this.sessionPromise?.then(session => {
                         session.sendToolResponse({
                           functionResponses: [{
                             name: call.name,
                             id: call.id,
-                            response: { success: true, message: "Song played successfully." }
+                            response: { success: false, error: err.message }
                           }]
                         });
-                      });
-                    }
-                  })
-                  .catch(err => {
-                    this.sessionPromise?.then(session => {
-                      session.sendToolResponse({
-                        functionResponses: [{
-                          name: call.name,
-                          id: call.id,
-                          response: { success: false, error: err.message }
-                        }]
                       });
                     });
                   });

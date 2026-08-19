@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { WebSocketServer } from "ws";
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
+import nodemailer from "nodemailer";
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
@@ -60,6 +61,67 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // Email Verification Logic
+  const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
+
+  app.post("/api/auth/send-code", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      verificationCodes.set(email, { code, expiresAt: Date.now() + 10 * 60 * 1000 }); // 10 mins
+
+      if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        // Fallback for development if SMTP is not configured
+        console.log(`[Dev] Verification code for ${email}: ${code}`);
+        return res.json({ message: "Code sent (check server console in dev mode)." });
+      }
+
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+
+      await transporter.sendMail({
+        from: `"Priya AI" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: "Your Priya AI Verification Code",
+        text: `Your verification code is: ${code}\n\nIt will expire in 10 minutes.`,
+        html: `<p>Your verification code is: <strong>${code}</strong></p><p>It will expire in 10 minutes.</p>`
+      });
+
+      res.json({ message: "Verification code sent successfully." });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/auth/verify-code", (req, res) => {
+    try {
+      const { email, code } = req.body;
+      if (!email || !code) return res.status(400).json({ error: "Email and code are required" });
+
+      const record = verificationCodes.get(email);
+      if (!record) return res.status(400).json({ error: "No code requested for this email" });
+      
+      if (Date.now() > record.expiresAt) {
+        verificationCodes.delete(email);
+        return res.status(400).json({ error: "Code expired" });
+      }
+      
+      if (record.code !== code) {
+        return res.status(400).json({ error: "Invalid code" });
+      }
+
+      verificationCodes.delete(email);
+      res.json({ success: true, email });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   app.post("/api/chat", async (req, res) => {
     try {

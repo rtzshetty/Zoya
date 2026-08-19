@@ -7,6 +7,32 @@ export function resetPriyaSession() {
   chatSession = null;
 }
 
+export async function generateSong(prompt: string): Promise<{ audio: string, mimeType: string }> {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not defined.");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContentStream({
+    model: "lyria-3-clip-preview",
+    contents: prompt,
+  });
+
+  let audioBase64 = "";
+  let mimeType = "audio/wav";
+
+  for await (const chunk of response) {
+    const parts = chunk.candidates?.[0]?.content?.parts;
+    if (!parts) continue;
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        if (!audioBase64 && part.inlineData.mimeType) {
+          mimeType = part.inlineData.mimeType;
+        }
+        audioBase64 += part.inlineData.data;
+      }
+    }
+  }
+  return { audio: audioBase64, mimeType };
+}
+
 export interface PriyaResponse {
   text: string;
   sources?: { title: string; url: string; type?: "web" | "maps" }[];
@@ -121,12 +147,7 @@ export async function getPriyaResponse(
           const args = call.args as any;
           if (args.lyrics) {
             try {
-              const res = await fetch("/api/sing", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: `Sing this: ${args.lyrics}` })
-              });
-              const data = await res.json();
+              const data = await generateSong(`Sing this: ${args.lyrics}`);
               if (data.audio) {
                 returnAudio = data.audio;
                 returnMime = data.mimeType;
